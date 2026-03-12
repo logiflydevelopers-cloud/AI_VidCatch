@@ -1,0 +1,60 @@
+# Python cache
+
+**pycache**/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+
+venv/
+.env/
+.venv/
+
+# Environment variables
+
+.env
+
+# Logs
+
+*.log
+
+# Temp files
+
+*.tmp
+*.temp
+temp.py
+
+# OS files
+
+.DS_Store
+Thumbs.db
+
+# IDE / Editor
+
+.vscode/
+.idea/
+
+# Python build files
+
+build/
+dist/
+*.egg-info/
+
+# Docker
+
+*.dockerignore
+
+# Jupyter
+
+.ipynb_checkpoints
+
+# Testing
+
+.pytest_cache/
+coverage.xml
+htmlcov/
+
+# Misc
+
+*.swp
+*.swo
