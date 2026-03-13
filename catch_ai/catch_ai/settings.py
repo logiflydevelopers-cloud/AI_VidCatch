@@ -35,7 +35,7 @@ ALLOWED_HOSTS = [ "ai-vidcatch.onrender.com",
                  "localhost"]
 
 
-GOOGLE_CLIENT_ID = ""
+GOOGLE_CLIENT_ID = "91682002543-dq11bu12jj3h461ot6jcvq4212oc575f.apps.googleusercontent.com"
 
 
 # Application definition
