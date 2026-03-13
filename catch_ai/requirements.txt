@@ -10,3 +10,4 @@ tzdata==2025.3
 psycopg2-binary
 djangorestframework-simplejwt
 python-decouple
+dj-database-url
