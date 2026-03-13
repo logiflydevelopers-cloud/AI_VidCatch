@@ -31,7 +31,11 @@ SECRET_KEY = 'django-insecure-+doln_)80h6s3&jcow=wh)ljx*#_$j%)c!y*+pcp^wg1iry2%_
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = [ "ai-vidcatch.onrender.com"]
+ALLOWED_HOSTS = [ "ai-vidcatch.onrender.com",
+                 "localhost"]
+
+
+GOOGLE_CLIENT_ID = ""
 
 
 # Application definition

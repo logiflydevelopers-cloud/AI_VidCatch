@@ -9,6 +9,9 @@ from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .serializers import SignupSerializer
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+from django.conf import settings
 
 User = get_user_model()
 
@@ -99,4 +102,51 @@ def me(request):
         "email": user.email,
         "username": user.username,
         "is_admin": user.is_staff
+    })
+
+@api_view(["POST"])
+def google_login(request):
+
+    token = request.data.get("token")
+
+    if not token:
+        return Response(
+            {"error": "Token is required"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        idinfo = id_token.verify_oauth2_token(
+            token,
+            google_requests.Request(),
+            settings.GOOGLE_CLIENT_ID
+        )
+
+    except ValueError:
+        return Response(
+            {"error": "Invalid Google token"},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
+
+    email = idinfo["email"]
+    username = idinfo.get("name", "")
+
+    user, created = User.objects.get_or_create(
+        email=email,
+        defaults={"username": username}
+    )
+
+    refresh = RefreshToken.for_user(user)
+
+    return Response({
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "username": user.username,
+            "is_admin": user.is_staff
+        },
+        "tokens": {
+            "access": str(refresh.access_token),
+            "refresh": str(refresh)
+        }
     })

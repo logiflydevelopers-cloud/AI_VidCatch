@@ -13,3 +13,4 @@ python-decouple
 dj-database-url
 nanoid
 gunicorn
+google-auth
