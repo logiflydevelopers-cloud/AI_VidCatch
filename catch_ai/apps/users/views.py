@@ -12,6 +12,7 @@ from .serializers import SignupSerializer
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from django.conf import settings
+from rest_framework.permissions import AllowAny
 
 User = get_user_model()
 
@@ -27,6 +28,7 @@ def get_tokens_for_user(user):
 
 
 @api_view(["POST"])
+@permission_classes([AllowAny])
 def signup(request):
 
     serializer = SignupSerializer(data=request.data)
@@ -52,6 +54,7 @@ def signup(request):
 
 
 @api_view(["POST"])
+@permission_classes([AllowAny])
 def login(request):
 
     email = request.data.get("email")
@@ -92,6 +95,7 @@ def login(request):
 
 
 @api_view(["GET"])
+@permission_classes([AllowAny])
 @permission_classes([IsAuthenticated])
 def me(request):
 
@@ -105,6 +109,7 @@ def me(request):
     })
 
 @api_view(["POST"])
+@permission_classes([AllowAny])
 def google_login(request):
 
     token = request.data.get("token")
