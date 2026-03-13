@@ -12,3 +12,4 @@ djangorestframework-simplejwt
 python-decouple
 dj-database-url
 nanoid
+gunicorn
