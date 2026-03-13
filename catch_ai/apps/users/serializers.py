@@ -27,12 +27,20 @@ class SignupSerializer(serializers.ModelSerializer):
 
     def validate_email(self, value):
 
-        if User.objects.filter(email=value).exists():
+        user = User.objects.filter(email=value).first()
+
+        if user:
+            if user.login_provider == "google":
+                raise serializers.ValidationError(
+                    "This email is registered using Google Sign-In"
+                )
+
             raise serializers.ValidationError(
                 "Email already registered"
             )
 
         return value
+
 
     def validate(self, data):
 
@@ -43,10 +51,14 @@ class SignupSerializer(serializers.ModelSerializer):
 
         return data
 
+
     def create(self, validated_data):
 
         validated_data.pop("confirm_password")
 
-        user = User.objects.create_user(**validated_data)
+        user = User.objects.create_user(
+            **validated_data,
+            login_provider="email"
+        )
 
         return user
