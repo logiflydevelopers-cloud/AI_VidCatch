@@ -1,9 +1,10 @@
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
+from django.shortcuts import get_object_or_404
 
 from .models import Template
-from .serializers import TemplateSerializer
+from .serializers import AdminTemplateSerializer
 from .permissions import IsAdmin
 
 
@@ -11,22 +12,22 @@ from .permissions import IsAdmin
 @permission_classes([IsAdmin])
 def create_template(request):
 
-    serializer = TemplateSerializer(data=request.data)
+    serializer = AdminTemplateSerializer(data=request.data)
 
     if serializer.is_valid():
         serializer.save()
-        return Response(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    return Response(serializer.errors, status=400)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["PUT"])
 @permission_classes([IsAdmin])
 def update_template(request, template_id):
 
-    template = Template.objects.get(id=template_id)
+    template = get_object_or_404(Template, id=template_id)
 
-    serializer = TemplateSerializer(
+    serializer = AdminTemplateSerializer(
         template,
         data=request.data,
         partial=True
@@ -36,15 +37,18 @@ def update_template(request, template_id):
         serializer.save()
         return Response(serializer.data)
 
-    return Response(serializer.errors, status=400)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["DELETE"])
 @permission_classes([IsAdmin])
 def delete_template(request, template_id):
 
-    template = Template.objects.get(id=template_id)
+    template = get_object_or_404(Template, id=template_id)
 
     template.delete()
 
-    return Response({"message": "Template deleted"})
+    return Response(
+        {"message": "Template deleted"},
+        status=status.HTTP_204_NO_CONTENT
+    )

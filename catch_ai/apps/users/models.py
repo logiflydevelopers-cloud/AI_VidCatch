@@ -14,9 +14,6 @@ class UserManager(BaseUserManager):
         if not email:
             raise ValueError("Email is required")
 
-        if not password:
-            raise ValueError("Password is required")
-
         email = self.normalize_email(email)
 
         user = self.model(
@@ -24,16 +21,22 @@ class UserManager(BaseUserManager):
             **extra_fields
         )
 
-        user.set_password(password)
+        if password:
+            user.set_password(password)
+        else:
+            user.set_unusable_password()
+
         user.save(using=self._db)
 
         return user
+
 
     def create_superuser(self, email, password=None, **extra_fields):
 
         extra_fields.setdefault("is_staff", True)
         extra_fields.setdefault("is_superuser", True)
         extra_fields.setdefault("is_active", True)
+        extra_fields.setdefault("login_provider", "email")
 
         if extra_fields.get("is_staff") is not True:
             raise ValueError("Superuser must have is_staff=True")
@@ -45,6 +48,11 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractBaseUser, PermissionsMixin):
+
+    LOGIN_CHOICES = (
+        ("email", "Email"),
+        ("google", "Google"),
+    )
 
     id = models.CharField(
         primary_key=True,
@@ -58,6 +66,20 @@ class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(
         unique=True,
         db_index=True
+    )
+
+    # 🔑 how user registered
+    login_provider = models.CharField(
+        max_length=20,
+        choices=LOGIN_CHOICES,
+        default="email"
+    )
+
+    # 🔑 store google account id
+    google_id = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True
     )
 
     is_active = models.BooleanField(default=True)
