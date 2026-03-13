@@ -95,7 +95,6 @@ def login(request):
 
 
 @api_view(["GET"])
-@permission_classes([AllowAny])
 @permission_classes([IsAuthenticated])
 def me(request):
 
