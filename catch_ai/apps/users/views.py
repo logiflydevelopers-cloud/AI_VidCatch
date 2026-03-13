@@ -36,9 +36,14 @@ def signup(request):
 
         return Response({
             "message": "User created successfully",
-            "user_id": user.id,
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "username": user.username,
+                "is_admin": user.is_staff
+            },
             "tokens": tokens
-        })
+        }, status=status.HTTP_201_CREATED)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -49,6 +54,12 @@ def login(request):
     email = request.data.get("email")
     password = request.data.get("password")
 
+    if not email or not password:
+        return Response(
+            {"error": "Email and password are required"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
     user = authenticate(request, email=email, password=password)
 
     if user is None:
@@ -57,13 +68,24 @@ def login(request):
             status=status.HTTP_401_UNAUTHORIZED
         )
 
+    if not user.is_active:
+        return Response(
+            {"error": "Account is disabled"},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
     tokens = get_tokens_for_user(user)
 
     return Response({
         "message": "Login successful",
-        "user_id": user.id,
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "username": user.username,
+            "is_admin": user.is_staff
+        },
         "tokens": tokens
-    })
+    }, status=status.HTTP_200_OK)
 
 
 @api_view(["GET"])
@@ -75,5 +97,6 @@ def me(request):
     return Response({
         "id": user.id,
         "email": user.email,
-        "username": user.username
+        "username": user.username,
+        "is_admin": user.is_staff
     })

@@ -16,20 +16,29 @@ class SignupSerializer(serializers.ModelSerializer):
             "confirm_password"
         ]
 
+        read_only_fields = ["id"]
+
         extra_kwargs = {
-            "password": {"write_only": True}
+            "password": {
+                "write_only": True,
+                "min_length": 8
+            }
         }
+
+    def validate_email(self, value):
+
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError(
+                "Email already registered"
+            )
+
+        return value
 
     def validate(self, data):
 
         if data["password"] != data["confirm_password"]:
             raise serializers.ValidationError(
-                {"error": "Passwords do not match"}
-            )
-
-        if User.objects.filter(email=data["email"]).exists():
-            raise serializers.ValidationError(
-                {"email": "Email already registered"}
+                {"password": "Passwords do not match"}
             )
 
         return data
