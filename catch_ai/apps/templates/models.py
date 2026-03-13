@@ -13,11 +13,7 @@ class AIModel(models.Model):
         ("image_colorize", "Image Colorize"),
     ]
 
-    id = models.CharField(
-        primary_key=True,
-        max_length=30,
-        editable=False
-    )
+    id = models.CharField(primary_key=True, max_length=30, editable=False)
 
     name = models.CharField(max_length=100)
 
@@ -26,21 +22,15 @@ class AIModel(models.Model):
         choices=FEATURE_CHOICES
     )
 
-    provider = models.CharField(
-        max_length=50,
-        blank=True,
-        null=True
-    )
+    provider = models.CharField(max_length=50, blank=True, null=True)
 
     is_active = models.BooleanField(default=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
-
         if not self.id:
             self.id = f"mdl_{uuid.uuid4().hex[:8].upper()}"
-
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -58,11 +48,7 @@ class Template(models.Model):
         ("image_colorize", "Image Colorize"),
     ]
 
-    id = models.CharField(
-        primary_key=True,
-        max_length=20,
-        editable=False
-    )
+    id = models.CharField(primary_key=True, max_length=20, editable=False)
 
     name = models.CharField(max_length=255)
 
@@ -75,23 +61,17 @@ class Template(models.Model):
         choices=FEATURE_CHOICES
     )
 
-    # NEW: Allowed AI models for this template
-    models = models.ManyToManyField(
+    
+    allowed_models = models.ManyToManyField(
         AIModel,
         related_name="templates"
     )
 
-    prompt_template = models.TextField(
-        blank=True,
-        null=True
-    )
+    prompt_template = models.TextField(blank=True, null=True)
 
     input_schema = models.JSONField()
 
-    default_settings = models.JSONField(
-        blank=True,
-        null=True
-    )
+    default_settings = models.JSONField(blank=True, null=True)
 
     is_active = models.BooleanField(default=True)
 
@@ -100,10 +80,8 @@ class Template(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
-
         if not self.id:
             self.id = f"tpl_{uuid.uuid4().hex[:8].upper()}"
-
         super().save(*args, **kwargs)
 
     def __str__(self):
