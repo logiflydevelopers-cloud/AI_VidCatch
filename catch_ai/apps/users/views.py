@@ -111,7 +111,7 @@ def me(request):
 @permission_classes([AllowAny])
 def google_login(request):
 
-    token = request.data.get("token")
+    token = request.data.get("token") or request.data.get("credential")
 
     if not token:
         return Response(
@@ -125,7 +125,6 @@ def google_login(request):
             google_requests.Request(),
             settings.GOOGLE_CLIENT_ID
         )
-
     except ValueError:
         return Response(
             {"error": "Invalid Google token"},
@@ -134,10 +133,15 @@ def google_login(request):
 
     email = idinfo["email"]
     username = idinfo.get("name", "")
+    google_id = idinfo["sub"]
 
     user, created = User.objects.get_or_create(
         email=email,
-        defaults={"username": username}
+        defaults={
+            "username": username,
+            "login_provider": "google",
+            "google_id": google_id
+        }
     )
 
     refresh = RefreshToken.for_user(user)
