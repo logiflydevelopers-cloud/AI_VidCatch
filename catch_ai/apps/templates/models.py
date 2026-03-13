@@ -2,6 +2,51 @@ import uuid
 from django.db import models
 
 
+class AIModel(models.Model):
+
+    FEATURE_CHOICES = [
+        ("text_to_video", "Text to Video"),
+        ("image_to_video", "Image to Video"),
+        ("background_remove", "Background Remove"),
+        ("background_change", "Background Change"),
+        ("image_upscale", "Image Upscale"),
+        ("image_colorize", "Image Colorize"),
+    ]
+
+    id = models.CharField(
+        primary_key=True,
+        max_length=30,
+        editable=False
+    )
+
+    name = models.CharField(max_length=100)
+
+    feature_type = models.CharField(
+        max_length=50,
+        choices=FEATURE_CHOICES
+    )
+
+    provider = models.CharField(
+        max_length=50,
+        blank=True,
+        null=True
+    )
+
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+
+        if not self.id:
+            self.id = f"mdl_{uuid.uuid4().hex[:8].upper()}"
+
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
+
+
 class Template(models.Model):
 
     FEATURE_CHOICES = [
@@ -28,6 +73,12 @@ class Template(models.Model):
     feature_type = models.CharField(
         max_length=50,
         choices=FEATURE_CHOICES
+    )
+
+    # NEW: Allowed AI models for this template
+    models = models.ManyToManyField(
+        AIModel,
+        related_name="templates"
     )
 
     prompt_template = models.TextField(
