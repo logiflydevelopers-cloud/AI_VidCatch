@@ -17,6 +17,8 @@ from datetime import timedelta
 import dj_database_url
 import os
 
+from pathlib import Path
+
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -29,7 +31,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-+doln_)80h6s3&jcow=wh)ljx*#_$j%)c!y*+pcp^wg1iry2%_'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = [ "ai-vidcatch.onrender.com",
                  "localhost",
@@ -37,6 +39,14 @@ ALLOWED_HOSTS = [ "ai-vidcatch.onrender.com",
 
 
 GOOGLE_CLIENT_ID = "91682002543-lcbtoorrjgubalohid9jn1s92a20474q.apps.googleusercontent.com"
+
+STATIC_URL = "static/"
+
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
+
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 
 # Application definition
@@ -90,24 +100,24 @@ WSGI_APPLICATION = 'catch_ai.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# DATABASES = {
-#     "default": {
-#         "ENGINE": "django.db.backends.postgresql",
-#         "NAME": config("DB_NAME"),
-#         "USER": config("DB_USER"),
-#         "PASSWORD": config("DB_PASSWORD"),
-#         "HOST": config("DB_HOST"),
-#         "PORT": config("DB_PORT"),
-#     }
-# }
-
-
 DATABASES = {
-    "default": dj_database_url.config(
-        default=os.environ.get("DATABASE_URL"),
-        conn_max_age=600
-    )
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": config("DB_NAME"),
+        "USER": config("DB_USER"),
+        "PASSWORD": config("DB_PASSWORD"),
+        "HOST": config("DB_HOST"),
+        "PORT": config("DB_PORT"),
+    }
 }
+
+
+# DATABASES = {
+#     "default": dj_database_url.config(
+#         default=os.environ.get("DATABASE_URL"),
+#         conn_max_age=600
+#     )
+# }
 
 
 AUTH_USER_MODEL = "users.User"
@@ -167,3 +177,10 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+FIREBASE_CREDENTIALS = os.path.join(BASE_DIR, "firebase-service-account.json")
+
+FIREBASE_STORAGE_BUCKET = "ai-vidcatch.firebasestorage.app"

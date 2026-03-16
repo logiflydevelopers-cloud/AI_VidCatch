@@ -17,6 +17,8 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from django.http import JsonResponse
+from django.conf import settings
+from django.conf.urls.static import static
 
 def home(request):
     return JsonResponse({"status": "API running"})
@@ -28,4 +30,5 @@ urlpatterns = [
     # path("api/templates/", include("apps.templates.urls")),
     # path("api/admin/templates/", include("apps.templates.admin_urls")),
 ]
-   
+
+urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
