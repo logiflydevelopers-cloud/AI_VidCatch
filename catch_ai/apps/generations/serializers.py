@@ -9,19 +9,8 @@ from apps.templates.models import Template
 
 class GenerateSerializer(serializers.Serializer):
 
-    template_id = serializers.IntegerField()
-
-    prompt = serializers.CharField(required=False, allow_blank=True)
-
-    images = serializers.ListField(
-        child=serializers.URLField(),
-        required=False
-    )
-
-    videos = serializers.ListField(
-        child=serializers.URLField(),
-        required=False
-    )
+    template_id = serializers.CharField()
+    input_data = serializers.JSONField()
 
     def validate_template_id(self, value):
 
@@ -34,15 +23,17 @@ class GenerateSerializer(serializers.Serializer):
 # ============================================
 # GENERATION RESPONSE SERIALIZER
 # ============================================
+
 class GenerationSerializer(serializers.ModelSerializer):
 
-    template_name = serializers.CharField(source="template.name")
+    template_name = serializers.CharField(source="template.name", read_only=True)
+    job_id = serializers.CharField(read_only=True)
 
     class Meta:
         model = Generation
 
         fields = [
-            "id",
+            "job_id",
             "template",
             "template_name",
             "status",
