@@ -47,7 +47,7 @@ class GenerationSerializer(serializers.ModelSerializer):
             "template_name",
             "status",
             "result_url",
-            "error",
+            "error_message",
             "created_at",
             "completed_at",
         ]
