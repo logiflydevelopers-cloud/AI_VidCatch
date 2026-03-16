@@ -16,3 +16,5 @@ gunicorn
 google-auth
 requests
 firebase-admin
+celery
+redis

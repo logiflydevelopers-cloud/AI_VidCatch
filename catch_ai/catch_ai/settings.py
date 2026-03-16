@@ -184,3 +184,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 FIREBASE_CREDENTIALS = os.path.join(BASE_DIR, "firebase-service-account.json")
 
 FIREBASE_STORAGE_BUCKET = "ai-vidcatch.firebasestorage.app"
+
+FASTAPI_GENERATE_URL = "https://iv-models.onrender.com/generate"
+
+CELERY_BROKER_URL = os.getenv("REDIS_URL")
+CELERY_RESULT_BACKEND = os.getenv("REDIS_URL")
+
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+
+CELERY_TIMEZONE = "UTC"
