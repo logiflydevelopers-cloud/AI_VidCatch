@@ -59,4 +59,4 @@ htmlcov/
 *.swp
 *.swo
 
-catch_ai/firebase-service-account.json:1
+catch_ai/firebase-service-account.json
