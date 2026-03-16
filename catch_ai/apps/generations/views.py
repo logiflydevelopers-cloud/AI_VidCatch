@@ -5,7 +5,7 @@ from django.shortcuts import get_object_or_404
 
 from apps.templates.models import Template
 from .models import Generation
-from .serializers import GenerationSerializer
+from .serializers import GenerateSerializer, GenerationSerializer
 from .tasks import run_generation
 
 
@@ -16,16 +16,13 @@ from .tasks import run_generation
 @permission_classes([IsAuthenticated])
 def create_generation(request):
 
-    serializer = GenerationSerializer(data=request.data)
-
-    if not serializer.is_valid():
-        return Response(serializer.errors, status=400)
+    serializer = GenerateSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
 
     template_id = serializer.validated_data["template_id"]
+    input_data = serializer.validated_data["input_data"]
 
     template = get_object_or_404(Template, id=template_id)
-
-    input_data = serializer.validated_data
 
     generation = Generation.objects.create(
         user=request.user,
@@ -41,7 +38,7 @@ def create_generation(request):
     generation.save()
 
     return Response({
-        "generation_id": generation.id,
+        "job_id": generation.job_id,
         "status": "queued"
     })
 
@@ -51,11 +48,11 @@ def create_generation(request):
 # ==========================================================
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
-def get_generation(request, generation_id):
+def get_generation(request, job_id):
 
     generation = get_object_or_404(
         Generation,
-        id=generation_id,
+        job_id=job_id,
         user=request.user
     )
 
@@ -72,7 +69,7 @@ def get_generation(request, generation_id):
 def list_generations(request):
 
     generations = Generation.objects.filter(
-    user=request.user
+        user=request.user
     ).select_related("template").order_by("-created_at")
 
     serializer = GenerationSerializer(
