@@ -27,7 +27,7 @@ urlpatterns = [
     path("", home),
     path('admin/', admin.site.urls),
     path('api/users/', include("apps.users.urls")),
-    # path("api/templates/", include("apps.templates.urls")),
+    path("api/templates/", include("apps.templates.urls")),
     # path("api/admin/templates/", include("apps.templates.admin_urls")),
 ]
 
