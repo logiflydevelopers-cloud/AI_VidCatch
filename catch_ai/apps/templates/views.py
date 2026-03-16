@@ -15,18 +15,19 @@ from .serializers import TemplateSerializer
 def list_templates(request):
 
     category = request.query_params.get("category")
+    feature_type = request.query_params.get("feature_type")
 
-    templates = Template.objects.filter(
-        is_active=True
-    )
+    templates = Template.objects.filter(is_active=True)
 
-    # optional category filtering
     if category:
         templates = templates.filter(category=category)
 
+    if feature_type:
+        templates = templates.filter(feature_type=feature_type)
+
     templates = templates.prefetch_related(
         "allowed_models"
-    ).order_by("-created_at")
+    ).order_by("display_order", "-created_at")
 
     serializer = TemplateSerializer(templates, many=True)
 
