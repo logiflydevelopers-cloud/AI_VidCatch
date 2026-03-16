@@ -16,7 +16,7 @@ from .tasks import run_generation
 @permission_classes([IsAuthenticated])
 def create_generation(request):
 
-    serializer = GenerateSerializer(data=request.data)
+    serializer = GenerationSerializer(data=request.data)
 
     if not serializer.is_valid():
         return Response(serializer.errors, status=400)
