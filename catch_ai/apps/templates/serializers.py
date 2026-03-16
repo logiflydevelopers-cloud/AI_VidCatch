@@ -15,7 +15,8 @@ class TemplateSerializer(serializers.ModelSerializer):
             "feature_type",
             "prompt_template",
             "input_schema",
-            "default_settings"
+            "default_settings",
+            "category"
         ]
 
 
