@@ -29,6 +29,8 @@ urlpatterns = [
     path('api/users/', include("apps.users.urls")),
     path("api/templates/", include("apps.templates.urls")),
     # path("api/admin/templates/", include("apps.templates.admin_urls")),
+    path("api/generations/", include("apps.generations.urls")),
+
 ]
 
 urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

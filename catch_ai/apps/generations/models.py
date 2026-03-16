@@ -1,7 +1,15 @@
+import random
+import string
+
 from django.db import models
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
+
+
+def generate_job_id():
+    code = "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+    return f"job_{code}"
 
 
 class Generation(models.Model):
@@ -13,51 +21,51 @@ class Generation(models.Model):
         ("failed", "Failed"),
     ]
 
-    # user who requested generation
+    job_id = models.CharField(
+        max_length=20,
+        unique=True,
+        editable=False,
+        null=True,
+        blank=True
+    )
+
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
         related_name="generations"
     )
 
-    # template used for generation
     template = models.ForeignKey(
         "templates.Template",
         on_delete=models.CASCADE,
         related_name="generations"
     )
 
-    # user input data (firebase urls + prompt etc)
     input_data = models.JSONField()
 
-    # output media url stored in firebase
     result_url = models.URLField(
         max_length=500,
         null=True,
         blank=True
     )
 
-    # generation status
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
         default="pending"
     )
 
-    # error message if generation fails
     error_message = models.TextField(
         null=True,
         blank=True
     )
 
-    # celery task id (useful for debugging)
     task_id = models.CharField(
         max_length=255,
         null=True,
         blank=True
     )
 
-    # timestamps
     created_at = models.DateTimeField(auto_now_add=True)
 
     started_at = models.DateTimeField(
@@ -73,5 +81,14 @@ class Generation(models.Model):
     class Meta:
         ordering = ["-created_at"]
 
+    def save(self, *args, **kwargs):
+        if not self.job_id:
+            while True:
+                job_id = generate_job_id()
+                if not Generation.objects.filter(job_id=job_id).exists():
+                    self.job_id = job_id
+                    break
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return f"Generation {self.id} - {self.user}"
+        return f"{self.job_id} - {self.user}"

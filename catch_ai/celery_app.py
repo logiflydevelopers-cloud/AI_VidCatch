@@ -8,7 +8,7 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backend.settings")
 
 
 # Create Celery instance
-app = Celery("backend")
+app = Celery("catch_ai")
 
 
 # Load celery config from Django settings
