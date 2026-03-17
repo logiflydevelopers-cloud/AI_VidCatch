@@ -1,15 +1,17 @@
 import uuid
 from django.db import models
+from django.core.exceptions import ValidationError
 
 
 FEATURE_CHOICES = [
     ("text_to_video", "Text to Video"),
     ("image_to_video", "Image to Video"),
-    ("image_to_image", "Image to Image"),
+    ("image_generation", "Image Generation"),
+    ("image_edit", "Image Edit"),
     ("background_remove", "Background Remove"),
     ("background_change", "Background Change"),
     ("image_upscale", "Image Upscale"),
-    ("image_colorize", "Image Colorize"),
+    ("image_colorize", "Image Colorize")
 ]
 
 CATEGORY_CHOICES = [
@@ -24,7 +26,7 @@ CATEGORY_CHOICES = [
     ("kids", "Kids"),
     ("wedding", "Wedding"),
     ("dance", "Dance"),
-    ("B&W", "B&W"),
+    ("bw", "B&W"),
 ]
 
 class AIModel(models.Model):
@@ -32,7 +34,7 @@ class AIModel(models.Model):
     id = models.CharField(primary_key=True, max_length=30, editable=False)
 
     # key used in FastAPI registry
-    model_key = models.CharField(max_length=100, unique=True)
+    model_name = models.CharField(max_length=100, unique=True)
 
     name = models.CharField(max_length=100)
 
@@ -95,6 +97,14 @@ class Template(models.Model):
         related_name="templates"
     )
 
+    default_model = models.ForeignKey(
+        AIModel,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="default_for_templates"
+    )
+
     prompt_template = models.TextField(blank=True, null=True)
 
     input_schema = models.JSONField()
@@ -110,6 +120,17 @@ class Template(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     updated_at = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        # ensure default_model is inside allowed_models
+        if self.default_model and self.pk:
+            if self.default_model not in self.allowed_models.all():
+                raise ValidationError("Default model must be in allowed_models")
+
+        # ensure feature consistency
+        if self.default_model:
+            if self.default_model.feature_type != self.feature_type:
+                raise ValidationError("Model feature_type must match template feature_type")
 
     def save(self, *args, **kwargs):
         if not self.id:
