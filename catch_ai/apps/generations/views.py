@@ -17,17 +17,12 @@ from .tasks import run_generation
 @permission_classes([IsAuthenticated])
 def create_generation(request):
 
-    print("\n====== CREATE GENERATION START ======")
-    print("REQUEST DATA:", request.data)
-
     try:
         # ============================
         # VALIDATE INPUT
         # ============================
         serializer = GenerateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
-        print("✅ STEP 1: Serializer validated")
 
         template_id = serializer.validated_data["template_id"]
         input_data = serializer.validated_data["input_data"]
@@ -41,8 +36,6 @@ def create_generation(request):
             is_active=True
         )
 
-        print("✅ STEP 2: Template found:", template.id)
-
         if not template.default_model:
             return Response(
                 {"error": "No model configured for this template"},
@@ -50,7 +43,6 @@ def create_generation(request):
             )
 
         model = template.default_model
-        print("✅ STEP 3: Model:", model)
 
         # ============================
         # CREATE GENERATION
@@ -69,19 +61,13 @@ def create_generation(request):
                 credit_used=model.credit_cost or template.credit_cost
             )
 
-            print("✅ STEP 4: Generation created:", generation.id)
-
             # ============================
             # SEND TO CELERY
             # ============================
             task = run_generation.delay(generation.id)
 
-            print("✅ STEP 5: Celery task sent:", task.id)
-
             generation.task_id = task.id
             generation.save()
-
-        print("🎉 SUCCESS RESPONSE RETURNED")
 
         return Response({
             "job_id": generation.job_id,
@@ -91,10 +77,6 @@ def create_generation(request):
 
     except Exception as e:
         import traceback
-
-        print("\n❌ ERROR IN CREATE_GENERATION VIEW")
-        print("ERROR:", str(e))
-        print("TRACEBACK:\n", traceback.format_exc())
 
         return Response(
             {"error": str(e)},
