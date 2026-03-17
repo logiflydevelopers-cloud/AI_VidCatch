@@ -5,6 +5,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from .models import Generation
+from apps.templates.models import Template
 from apps.services.firebase_storage import upload_generated_image
 
 
@@ -33,19 +34,43 @@ def run_generation(self, generation_id):
             raise Exception("No default model configured")
 
         # ============================
-        # SAVE SNAPSHOT
+        # SNAPSHOT (for audit/debug)
         # ============================
         generation.model_name = model.model_name
         generation.feature_type = model.feature_type
         generation.save()
 
         # ============================
-        # BUILD PAYLOAD
+        # VALIDATE INPUTS (schema based)
+        # ============================
+        user_inputs = generation.input_data or {}
+        schema_fields = template.input_schema.get("fields", [])
+
+        allowed_fields = [f["name"] for f in schema_fields]
+
+        # Required validation
+        for field in schema_fields:
+            if field.get("required") and field["name"] not in user_inputs:
+                raise Exception(f"{field['name']} is required")
+
+        # Remove unwanted fields
+        clean_inputs = {
+            k: v for k, v in user_inputs.items() if k in allowed_fields
+        }
+
+        # ============================
+        # INJECT PROMPT FROM TEMPLATE
+        # ============================
+        if template.prompt_template:
+            clean_inputs["prompt"] = template.prompt_template
+
+        # ============================
+        # BUILD FASTAPI PAYLOAD
         # ============================
         payload = {
             "feature": model.feature_type,
             "model": model.model_name,
-            "inputs": generation.input_data
+            "inputs": clean_inputs
         }
 
         # ============================
@@ -66,9 +91,6 @@ def run_generation(self, generation_id):
         if not ai_result_url:
             raise Exception("AI result URL missing")
 
-        # ============================
-        # DETECT RESULT TYPE
-        # ============================
         result_type = data.get("type", "image")
 
         # ============================
@@ -95,7 +117,7 @@ def run_generation(self, generation_id):
         generation.retry_count += 1
         generation.save()
 
-        # retry if possible
+        # Retry logic
         try:
             raise self.retry(exc=exc)
         except self.MaxRetriesExceededError:
