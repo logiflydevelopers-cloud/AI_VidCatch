@@ -186,7 +186,7 @@ FIREBASE_CREDENTIALS = os.path.join(BASE_DIR, "firebase-service-account.json")
 
 FIREBASE_STORAGE_BUCKET = "ai-vidcatch.firebasestorage.app"
 
-FASTAPI_GENERATE_URL = "https://iv-models.onrender.com/generate"
+FASTAPI_GENERATE_URL = "https://iv-models.onrender.com/ai/generate"
 
 CELERY_BROKER_URL = os.getenv("REDIS_URL")
 CELERY_RESULT_BACKEND = os.getenv("REDIS_URL")
