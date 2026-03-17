@@ -11,4 +11,4 @@ urlpatterns = [
 
 #     # list user generations
 #     path("my/", views.list_generations, name="my_generations"),
-# ]
+]
