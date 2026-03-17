@@ -14,7 +14,7 @@ from .tasks import run_generation
 # CREATE GENERATION
 # ==========================================================
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+# @permission_classes([IsAuthenticated])
 def create_generation(request):
 
     serializer = GenerateSerializer(data=request.data)
@@ -84,7 +84,7 @@ def create_generation(request):
 # GET GENERATION STATUS
 # ==========================================================
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+# @permission_classes([IsAuthenticated])
 def get_generation(request, job_id):
 
     generation = get_object_or_404(
@@ -102,7 +102,7 @@ def get_generation(request, job_id):
 # USER GENERATION HISTORY
 # ==========================================================
 @api_view(["GET"])
-@permission_classes([IsAuthenticated])
+# @permission_classes([IsAuthenticated])
 def list_generations(request):
 
     queryset = Generation.objects.filter(
