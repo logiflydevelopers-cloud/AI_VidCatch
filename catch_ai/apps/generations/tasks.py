@@ -86,7 +86,7 @@ def run_generation(self, generation_id):
 
         data = response.json()
 
-        ai_result_url = data.get("result_url")
+        ai_result_url = data.get("result_url") or data.get("result")
 
         if not ai_result_url:
             raise Exception("AI result URL missing")
@@ -119,7 +119,13 @@ def run_generation(self, generation_id):
 
         # Retry logic
         try:
-            raise self.retry(exc=exc)
+            if isinstance(exc, requests.exceptions.RequestException):
+                raise self.retry(exc=exc)
+            else:
+                generation.status = "failed"
+                generation.error_message = str(exc)
+                generation.completed_at = timezone.now()
+                generation.save()
         except self.MaxRetriesExceededError:
 
             generation.status = "failed"
