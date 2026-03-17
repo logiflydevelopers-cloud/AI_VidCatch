@@ -4,7 +4,7 @@ from celery import Celery
 
 
 # Set default Django settings module
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backend.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "catch_ai.settings")
 
 
 # Create Celery instance
