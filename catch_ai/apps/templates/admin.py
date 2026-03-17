@@ -113,7 +113,7 @@ class TemplateAdmin(admin.ModelAdmin):
         ("AI Configuration", {
             "fields": (
                 "allowed_models",
-                "default_model",   # ✅ important
+                "default_model",
                 "prompt_template",
                 "input_schema",
                 "default_settings",

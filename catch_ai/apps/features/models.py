@@ -1,85 +1,25 @@
-import uuid
 from django.db import models
 from django.core.exceptions import ValidationError
+from apps.templates.models import AIModel
+import uuid
 
 
 FEATURE_CHOICES = [
     ("text_to_video", "Text to Video"),
     ("image_to_video", "Image to Video"),
-    ("image_generation", "Image Generation"),
-    ("image_edit", "Image Edit"),
+    ("couple_wallpaper", "Couple Wallpaper"),
     ("background_remove", "Background Remove"),
     ("background_change", "Background Change"),
     ("image_upscale", "Image Upscale"),
     ("image_colorize", "Image Colorize")
 ]
 
-CATEGORY_CHOICES = [
-    ("all", "All"),
-    ("popular", "Popular"),
-    ("family", "Family"),
-    ("trending", "Trending"),
-    ("love", "Love"),
-    ("birthday", "Birthday"),
-    ("photoshoot", "Photoshoot"),
-    ("new", "New"),
-    ("kids", "Kids"),
-    ("wedding", "Wedding"),
-    ("dance", "Dance"),
-    ("bw", "B&W"),
-]
-
-class AIModel(models.Model):
-
-    id = models.CharField(primary_key=True, max_length=30, editable=False)
-
-    # key used in FastAPI registry
-    model_name = models.CharField(max_length=100, unique=True)
-
-    name = models.CharField(max_length=100)
-
-    feature_type = models.CharField(
-        max_length=50,
-        choices=FEATURE_CHOICES
-    )
-
-    provider = models.CharField(max_length=50, blank=True, null=True)
-
-    # cost per generation (credits)
-    credit_cost = models.IntegerField(default=1)
-
-    # default model for feature
-    is_default = models.BooleanField(default=False)
-
-    is_active = models.BooleanField(default=True)
-
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    def save(self, *args, **kwargs):
-        if not self.id:
-            self.id = f"mdl_{uuid.uuid4().hex[:8].upper()}"
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"{self.name} ({self.feature_type})"
-
-
-
-class Template(models.Model):
+# Create your models here.
+class Features(models.Model):
 
     id = models.CharField(primary_key=True, max_length=20, editable=False)
 
     name = models.CharField(max_length=255)
-
-    cover_image = models.URLField(max_length=1000, blank=True, null=True)
-
-    preview_media = models.JSONField(default=list, blank=True)
-
-    category = models.CharField(
-        max_length=50,
-        choices=CATEGORY_CHOICES,
-        default="new"
-    )
 
     credit_cost = models.IntegerField()
 
@@ -100,8 +40,6 @@ class Template(models.Model):
         blank=True,
         related_name="default_for_templates"
     )
-
-    prompt_template = models.TextField(blank=True, null=True)
 
     input_schema = models.JSONField()
 
