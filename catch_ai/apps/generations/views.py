@@ -40,12 +40,12 @@ def create_generation(request):
     model = template.default_model
 
     # ✅ Optional credit system
-    if hasattr(request.user, "credits"):
-        if request.user.credits < template.credit_cost:
-            return Response(
-                {"error": "Insufficient credits"},
-                status=400
-            )
+    # if hasattr(request.user, "credits"):
+    #     if request.user.credits < template.credit_cost:
+    #         return Response(
+    #             {"error": "Insufficient credits"},
+    #             status=400
+    #         )
 
     # ✅ Atomic transaction
     with transaction.atomic():
@@ -69,9 +69,9 @@ def create_generation(request):
         generation.save()
 
         # deduct credits (optional)
-        if hasattr(request.user, "credits"):
-            request.user.credits -= template.credit_cost
-            request.user.save()
+        # if hasattr(request.user, "credits"):
+        #     request.user.credits -= template.credit_cost
+        #     request.user.save()
 
     return Response({
         "job_id": generation.job_id,
