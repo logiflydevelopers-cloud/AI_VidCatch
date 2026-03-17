@@ -10,36 +10,54 @@ from apps.services.firebase_storage import upload_generated_image
 
 FASTAPI_GENERATE_URL = settings.FASTAPI_GENERATE_URL
 
-@shared_task
-def test_task():
-    print("Celery task executed successfully!")
-
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=10)
 def run_generation(self, generation_id):
-    """
-    Celery task to process AI generation.
-    """
+
+    generation = Generation.objects.select_related(
+        "template__default_model"
+    ).get(id=generation_id)
 
     try:
-        generation = Generation.objects.get(id=generation_id)
-
-        # mark as processing
+        # ============================
+        # SET PROCESSING
+        # ============================
         generation.status = "processing"
         generation.started_at = timezone.now()
         generation.save()
 
-        payload = generation.input_data
+        template = generation.template
+        model = template.default_model
 
-        # call FastAPI AI server
+        if not model:
+            raise Exception("No default model configured")
+
+        # ============================
+        # SAVE SNAPSHOT
+        # ============================
+        generation.model_name = model.model_name
+        generation.feature_type = model.feature_type
+        generation.save()
+
+        # ============================
+        # BUILD PAYLOAD
+        # ============================
+        payload = {
+            "feature": model.feature_type,
+            "model": model.model_name,
+            "inputs": generation.input_data
+        }
+
+        # ============================
+        # CALL FASTAPI
+        # ============================
         response = requests.post(
             FASTAPI_GENERATE_URL,
             json=payload,
-            timeout=120
+            timeout=300
         )
 
-        if response.status_code != 200:
-            raise Exception("AI server returned error")
+        response.raise_for_status()
 
         data = response.json()
 
@@ -48,14 +66,24 @@ def run_generation(self, generation_id):
         if not ai_result_url:
             raise Exception("AI result URL missing")
 
-        # download AI image and upload to Firebase
+        # ============================
+        # DETECT RESULT TYPE
+        # ============================
+        result_type = data.get("type", "image")
+
+        # ============================
+        # UPLOAD TO FIREBASE
+        # ============================
         firebase_url = upload_generated_image(
             ai_result_url,
             generation.user.id
         )
 
-        # update generation
+        # ============================
+        # SAVE SUCCESS
+        # ============================
         generation.result_url = firebase_url
+        generation.result_type = result_type
         generation.status = "completed"
         generation.completed_at = timezone.now()
         generation.save()
@@ -64,12 +92,13 @@ def run_generation(self, generation_id):
 
     except Exception as exc:
 
+        generation.retry_count += 1
+        generation.save()
+
         # retry if possible
         try:
-            self.retry(exc=exc)
+            raise self.retry(exc=exc)
         except self.MaxRetriesExceededError:
-
-            generation = Generation.objects.get(id=generation_id)
 
             generation.status = "failed"
             generation.error_message = str(exc)

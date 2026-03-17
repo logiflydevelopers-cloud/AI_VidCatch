@@ -3,31 +3,39 @@ from .models import Generation
 from apps.templates.models import Template
 
 
-# ============================================
-# GENERATION CREATE SERIALIZER
-# ============================================
-
 class GenerateSerializer(serializers.Serializer):
 
     template_id = serializers.CharField()
     input_data = serializers.JSONField()
 
-    def validate_template_id(self, value):
+    def validate(self, data):
 
-        if not Template.objects.filter(id=value).exists():
+        template_id = data.get("template_id")
+        input_data = data.get("input_data")
+
+        try:
+            template = Template.objects.get(id=template_id)
+        except Template.DoesNotExist:
             raise serializers.ValidationError("Template not found")
 
-        return value
+        schema = template.input_schema or {}
+        fields = schema.get("fields", [])
 
+        for field in fields:
+            name = field.get("name")
+            required = field.get("required", False)
 
-# ============================================
-# GENERATION RESPONSE SERIALIZER
-# ============================================
+            if required and name not in input_data:
+                raise serializers.ValidationError(f"{name} is required")
+
+        return data
+
 
 class GenerationSerializer(serializers.ModelSerializer):
 
     template_name = serializers.CharField(source="template.name", read_only=True)
     job_id = serializers.CharField(read_only=True)
+    processing_time = serializers.SerializerMethodField()
 
     class Meta:
         model = Generation
@@ -38,7 +46,15 @@ class GenerationSerializer(serializers.ModelSerializer):
             "template_name",
             "status",
             "result_url",
+            "result_type",
             "error_message",
+            "model_name",
+            "feature_type",
+            "input_data",
             "created_at",
             "completed_at",
+            "processing_time",
         ]
+
+    def get_processing_time(self, obj):
+        return obj.processing_time
