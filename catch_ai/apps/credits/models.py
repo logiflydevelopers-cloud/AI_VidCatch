@@ -25,12 +25,22 @@ class UserCredits(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def remaining_credits(self):
-        return self.total_credits - self.used_credits
+    # SAFE PROPERTY (ONLY FOR DISPLAY)
+    @property
+    def remaining(self):
+        """
+        Use ONLY for display (admin, serializer).
+        NEVER use inside business logic with F() expressions.
+        """
+        if isinstance(self.used_credits, int):
+            return self.total_credits - self.used_credits
+        return None  # avoid crash if expression
 
     def clean(self):
-        if self.used_credits > self.total_credits:
-            raise ValidationError("Used credits cannot exceed total credits")
+        # Only validate when actual values (not F expressions)
+        if isinstance(self.used_credits, int):
+            if self.used_credits > self.total_credits:
+                raise ValidationError("Used credits cannot exceed total credits")
 
     def save(self, *args, **kwargs):
         allow_used_update = kwargs.pop("allow_used_update", False)
@@ -38,6 +48,7 @@ class UserCredits(models.Model):
         if not self.id:
             self.id = f"crdt-{uuid.uuid4().hex[:8].upper()}"
 
+        # 🔒 Prevent manual modification
         if self.pk and not allow_used_update:
             try:
                 old = UserCredits.objects.get(pk=self.pk)
@@ -46,11 +57,10 @@ class UserCredits(models.Model):
             except UserCredits.DoesNotExist:
                 pass
 
-        self.full_clean()
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.user} - {self.remaining_credits()} credits"
+        return f"{self.user} - {self.total_credits - self.used_credits} credits"
 
 
 # ============================
@@ -71,7 +81,7 @@ class CreditTransaction(models.Model):
         related_name="credit_transactions"
     )
 
-    template = models.ForeignKey(   # 🔥 NEW (important)
+    template = models.ForeignKey(
         "templates.Template",
         on_delete=models.SET_NULL,
         null=True,

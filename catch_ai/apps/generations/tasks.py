@@ -25,7 +25,7 @@ def run_generation(self, generation_id):
         "user"
     ).get(id=generation_id)
 
-    cost = 0  # track for logging/refund if needed
+    cost = 0
 
     try:
         # ============================
@@ -72,7 +72,7 @@ def run_generation(self, generation_id):
             raise Exception("No default model configured")
 
         # ============================
-        # CREDIT CHECK & DEDUCTION
+        # 🔥 CREDIT CHECK & DEDUCTION (FIXED)
         # ============================
         if template:
             cost = template.credit_cost
@@ -85,29 +85,31 @@ def run_generation(self, generation_id):
             with transaction.atomic():
                 wallet.refresh_from_db()
 
-                remaining = wallet.remaining_credits()
+                # ✅ ALWAYS manual calculation
+                remaining = wallet.total_credits - wallet.used_credits
 
                 if remaining < cost:
                     raise Exception(
                         f"Not enough credits. Required: {cost}, Available: {remaining}"
                     )
 
-                # Deduct credits safely
+                # ✅ Deduct safely
                 wallet.used_credits = F("used_credits") + cost
                 wallet.save(allow_used_update=True)
 
+                # ✅ Convert expression → real value
                 wallet.refresh_from_db()
 
-                remaining = wallet.remaining_credits()
+                remaining_after = wallet.total_credits - wallet.used_credits
 
-                # Log transaction
+                # ✅ Log transaction
                 CreditTransaction.objects.create(
                     user=generation.user,
                     template=template,
                     feature=feature if feature else None,
                     amount=cost,
                     transaction_type="deduct",
-                    balance_after=wallet.remaining_credits(),
+                    balance_after=remaining_after,
                     description=f"Generation using template: {template.name}"
                 )
 
@@ -138,7 +140,7 @@ def run_generation(self, generation_id):
             raise Exception("Inputs became empty after filtering")
 
         # ============================
-        # PROMPT (ONLY TEMPLATE)
+        # PROMPT
         # ============================
         if prompt_template:
             clean_inputs["prompt"] = prompt_template
@@ -198,7 +200,6 @@ def run_generation(self, generation_id):
         generation.save()
 
         try:
-            # Retry only for network errors
             if isinstance(exc, requests.exceptions.RequestException):
                 raise self.retry(exc=exc)
 
