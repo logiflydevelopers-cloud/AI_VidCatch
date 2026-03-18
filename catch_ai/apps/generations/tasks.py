@@ -15,20 +15,43 @@ FASTAPI_GENERATE_URL = settings.FASTAPI_GENERATE_URL
 def run_generation(self, generation_id):
 
     generation = Generation.objects.select_related(
-        "template__default_model"
+        "template__default_model",
+        "feature__default_model"
     ).get(id=generation_id)
 
     try:
         # ============================
         # SET PROCESSING
         # ============================
-        
         generation.status = "processing"
         generation.started_at = timezone.now()
         generation.save()
 
         template = generation.template
-        model = template.default_model
+        feature = generation.feature
+
+        model = None
+        schema = None
+        prompt_template = None
+
+        # ============================
+        # TEMPLATE FLOW
+        # ============================
+        if template:
+            model = template.default_model
+            schema = template.input_schema or {}
+            prompt_template = getattr(template, "prompt_template", None)
+
+        # ============================
+        # FEATURE FLOW
+        # ============================
+        elif feature:
+            model = feature.default_model
+            schema = feature.input_schema or {}
+            prompt_template = None
+
+        else:
+            raise Exception("No template or feature found")
 
         if not model:
             raise Exception("No default model configured")
@@ -44,7 +67,7 @@ def run_generation(self, generation_id):
         # VALIDATE INPUTS
         # ============================
         user_inputs = generation.input_data or {}
-        schema_fields = template.input_schema.get("fields", [])
+        schema_fields = schema.get("fields", [])
 
         allowed_fields = [f["name"] for f in schema_fields]
 
@@ -62,10 +85,10 @@ def run_generation(self, generation_id):
             raise Exception("Inputs became empty after filtering")
 
         # ============================
-        # PROMPT
+        # PROMPT (ONLY TEMPLATE)
         # ============================
-        if template.prompt_template:
-            clean_inputs["prompt"] = template.prompt_template
+        if prompt_template:
+            clean_inputs["prompt"] = prompt_template
 
         # ============================
         # BUILD PAYLOAD
@@ -79,7 +102,6 @@ def run_generation(self, generation_id):
         # ============================
         # CALL FASTAPI
         # ============================
-
         response = requests.post(
             FASTAPI_GENERATE_URL,
             json=payload,
@@ -100,7 +122,6 @@ def run_generation(self, generation_id):
         # ============================
         # UPLOAD TO FIREBASE
         # ============================
-
         firebase_url = upload_generated_image(
             ai_result_url,
             generation.user.id
@@ -109,21 +130,25 @@ def run_generation(self, generation_id):
         # ============================
         # SAVE SUCCESS
         # ============================
-
         generation.result_url = firebase_url
         generation.result_type = result_type
         generation.status = "completed"
         generation.completed_at = timezone.now()
         generation.save()
+
         return firebase_url
 
     except Exception as exc:
+        traceback.print_exc()
+
         generation.retry_count += 1
         generation.save()
 
         try:
+            # retry only for network errors
             if isinstance(exc, requests.exceptions.RequestException):
                 raise self.retry(exc=exc)
+
             else:
                 generation.status = "failed"
                 generation.error_message = str(exc)
@@ -131,7 +156,6 @@ def run_generation(self, generation_id):
                 generation.save()
 
         except self.MaxRetriesExceededError:
-
             generation.status = "failed"
             generation.error_message = str(exc)
             generation.completed_at = timezone.now()

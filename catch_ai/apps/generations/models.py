@@ -4,6 +4,7 @@ import string
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from django.core.exceptions import ValidationError
 
 User = get_user_model()
 
@@ -29,7 +30,6 @@ class Generation(models.Model):
         ("failed", "Failed"),
     ]
 
-    # ✅ FIXED (NO DEFAULT VALUE)
     job_id = models.CharField(
         max_length=20,
         unique=True,
@@ -45,8 +45,25 @@ class Generation(models.Model):
 
     template = models.ForeignKey(
         "templates.Template",
-        on_delete=models.CASCADE,
-        related_name="generations"
+        on_delete=models.SET_NULL,
+        related_name="generations",
+        null=True,
+        blank=True
+    )
+
+    feature = models.ForeignKey(
+        "features.Features",
+        on_delete=models.SET_NULL,
+        related_name="generations",
+        null=True,
+        blank=True
+    )
+
+    source_type = models.CharField(
+        max_length=20,
+        choices=[("template", "Template"), ("feature", "Feature")],
+        null=True,
+        blank=True
     )
 
     input_data = models.JSONField()
@@ -96,12 +113,20 @@ class Generation(models.Model):
             models.Index(fields=["job_id"]),
         ]
 
+
+    def clean(self):
+        if not self.template and not self.feature:
+            raise ValidationError("Either template or feature must be set")
+
+        if self.template and self.feature:
+            raise ValidationError("Only one of template or feature should be set")
+
     # ==========================================================
     # OVERRIDE SAVE
     # ==========================================================
     def save(self, *args, **kwargs):
 
-        # ✅ Generate unique job_id
+        # Generate unique job_id
         if not self.job_id:
             while True:
                 new_job_id = generate_job_id()
@@ -109,7 +134,13 @@ class Generation(models.Model):
                     self.job_id = new_job_id
                     break
 
-        # ✅ Auto timestamps
+        # Auto source type
+        if self.template:
+            self.source_type = "template"
+        elif self.feature:
+            self.source_type = "feature"
+
+        # Auto timestamps
         if self.status == "processing" and not self.started_at:
             self.started_at = timezone.now()
 

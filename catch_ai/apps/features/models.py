@@ -30,7 +30,7 @@ class Features(models.Model):
 
     allowed_models = models.ManyToManyField(
         AIModel,
-        related_name="templates"
+        related_name="features"
     )
 
     default_model = models.ForeignKey(
@@ -38,7 +38,7 @@ class Features(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name="default_for_templates"
+        related_name="default_for_features"
     )
 
     input_schema = models.JSONField()
@@ -68,7 +68,7 @@ class Features(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.id:
-            self.id = f"tpl_{uuid.uuid4().hex[:8].upper()}"
+            self.id = f"feat_{uuid.uuid4().hex[:8].upper()}"
         super().save(*args, **kwargs)
 
     def __str__(self):

@@ -5,13 +5,14 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 
 from apps.templates.models import Template
+from apps.features.models import Features
 from .models import Generation
 from .serializers import GenerateSerializer, GenerationSerializer
 from .tasks import run_generation
 
 
 # ==========================================================
-# CREATE GENERATION
+# CREATE GENERATION (TEMPLATE + FEATURE)
 # ==========================================================
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -24,25 +25,58 @@ def create_generation(request):
         serializer = GenerateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        template_id = serializer.validated_data["template_id"]
+        template_id = serializer.validated_data.get("template_id")
+        feature_id = serializer.validated_data.get("feature_id")
         input_data = serializer.validated_data["input_data"]
 
-        # ============================
-        # FETCH TEMPLATE
-        # ============================
-        template = get_object_or_404(
-            Template,
-            id=template_id,
-            is_active=True
-        )
+        template = None
+        feature = None
+        model = None
+        feature_type = None
+        credit_cost = 1
 
-        if not template.default_model:
-            return Response(
-                {"error": "No model configured for this template"},
-                status=400
+        # ============================
+        # TEMPLATE FLOW
+        # ============================
+        if template_id:
+            template = get_object_or_404(
+                Template,
+                id=template_id,
+                is_active=True
             )
 
-        model = template.default_model
+            if not template.default_model:
+                return Response(
+                    {"error": "No model configured for this template"},
+                    status=400
+                )
+
+            model = template.default_model
+            feature_type = model.feature_type
+            credit_cost = model.credit_cost or template.credit_cost
+
+        # ============================
+        # FEATURE FLOW
+        # ============================
+        elif feature_id:
+            feature = get_object_or_404(
+                Features,
+                id=feature_id,
+                is_active=True
+            )
+
+            if not feature.default_model:
+                return Response(
+                    {"error": "No model configured for this feature"},
+                    status=400
+                )
+
+            model = feature.default_model
+            feature_type = feature.feature_type
+            credit_cost = model.credit_cost or feature.credit_cost
+
+        else:
+            return Response({"error": "Invalid request"}, status=400)
 
         # ============================
         # CREATE GENERATION
@@ -50,15 +84,18 @@ def create_generation(request):
         with transaction.atomic():
 
             generation = Generation.objects.create(
-                user=request.user,  # safe because auth is enabled
+                user=request.user,
+
                 template=template,
+                feature=feature,
+
                 input_data=input_data,
                 status="pending",
 
                 # snapshot
                 model_name=model.model_name,
-                feature_type=model.feature_type,
-                credit_used=model.credit_cost or template.credit_cost
+                feature_type=feature_type,
+                credit_used=credit_cost
             )
 
             # ============================
@@ -72,11 +109,13 @@ def create_generation(request):
         return Response({
             "job_id": generation.job_id,
             "status": "queued",
-            "template": template.name
+            "source": "template" if template else "feature",
+            "name": template.name if template else feature.name
         })
 
     except Exception as e:
         import traceback
+        traceback.print_exc()
 
         return Response(
             {"error": str(e)},
@@ -92,7 +131,7 @@ def create_generation(request):
 def get_generation(request, job_id):
 
     generation = get_object_or_404(
-        Generation.objects.select_related("template"),
+        Generation.objects.select_related("template", "feature"),
         job_id=job_id,
         user=request.user
     )
@@ -111,14 +150,14 @@ def list_generations(request):
 
     queryset = Generation.objects.filter(
         user=request.user
-    ).select_related("template")
+    ).select_related("template", "feature")
 
-    # ✅ optional filters
+    # optional filters
     status = request.GET.get("status")
     if status:
         queryset = queryset.filter(status=status)
 
-    # ✅ pagination (simple limit)
+    # pagination
     limit = int(request.GET.get("limit", 20))
     offset = int(request.GET.get("offset", 0))
 

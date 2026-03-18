@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from django.utils.html import format_html
 
 from .models import Template, AIModel
+from apps.features.models import Features
 from apps.services.firebase_storage import upload_file
 
 # optional (if you implemented delete_file)
@@ -53,7 +54,7 @@ class AIModelAdmin(admin.ModelAdmin):
 
     list_filter = ("feature_type", "is_active")
 
-    search_fields = ("name", "model_name")  # ✅ fixed
+    search_fields = ("name", "model_name") 
 
 
 # ============================
@@ -241,4 +242,124 @@ class TemplateAdmin(admin.ModelAdmin):
             obj.preview_media = urls
 
         # Final save
+        obj.save()
+
+
+# ============================
+# FEATURE ADMIN FORM
+# ============================
+
+class FeatureAdminForm(forms.ModelForm):
+
+    class Meta:
+        model = Features
+        fields = "__all__"
+
+
+# ============================
+# FEATURE ADMIN
+# ============================
+
+@admin.register(Features)
+class FeaturesAdmin(admin.ModelAdmin):
+
+    form = FeatureAdminForm
+
+    list_display = (
+        "id",
+        "name",
+        "feature_type",
+        "credit_cost",
+        "is_premium",
+        "is_active",
+        "display_order",
+        "created_at",
+    )
+
+    list_filter = (
+        "feature_type",
+        "is_active",
+        "is_premium"
+    )
+
+    search_fields = ("name",)
+
+    filter_horizontal = ("allowed_models",)
+
+    readonly_fields = ("id", "created_at", "updated_at")
+
+    ordering = ("display_order",)
+
+    fieldsets = (
+        ("Basic Info", {
+            "fields": (
+                "id",
+                "name",
+                "feature_type",
+                "credit_cost",
+                "is_premium",
+                "is_active",
+                "display_order",
+            )
+        }),
+
+        ("AI Configuration", {
+            "fields": (
+                "allowed_models",
+                "default_model",
+                "input_schema",
+                "default_settings",
+            )
+        }),
+
+        ("Timestamps", {
+            "fields": (
+                "created_at",
+                "updated_at",
+            )
+        }),
+    )
+
+    # ============================
+    # FILTER DEFAULT MODEL BY FEATURE TYPE
+    # ============================
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+
+        if db_field.name == "default_model":
+
+            obj_id = request.resolver_match.kwargs.get("object_id")
+
+            if obj_id:
+                try:
+                    feature = Features.objects.get(id=obj_id)
+                    kwargs["queryset"] = AIModel.objects.filter(
+                        feature_type=feature.feature_type,
+                        is_active=True
+                    )
+                except Features.DoesNotExist:
+                    pass
+            else:
+                kwargs["queryset"] = AIModel.objects.filter(is_active=True)
+
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+    # ============================
+    # VALIDATION ON SAVE
+    # ============================
+    def save_model(self, request, obj, form, change):
+
+        super().save_model(request, obj, form, change)
+
+        if obj.default_model:
+
+            if obj.default_model not in obj.allowed_models.all():
+                raise ValidationError(
+                    "Default model must be in allowed_models"
+                )
+
+            if obj.default_model.feature_type != obj.feature_type:
+                raise ValidationError(
+                    "Model feature_type must match feature feature_type"
+                )
+
         obj.save()
