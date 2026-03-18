@@ -6,7 +6,7 @@ from django.conf import settings
 from django.utils import timezone
 
 from .models import Generation
-from apps.services.firebase_storage import upload_generated_image
+from apps.services.firebase_storage import upload_generated_file
 
 FASTAPI_GENERATE_URL = settings.FASTAPI_GENERATE_URL
 
@@ -122,7 +122,7 @@ def run_generation(self, generation_id):
         # ============================
         # UPLOAD TO FIREBASE
         # ============================
-        firebase_url = upload_generated_image(
+        firebase_url = upload_generated_file(
             ai_result_url,
             generation.user.id
         )
