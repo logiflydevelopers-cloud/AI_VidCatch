@@ -16,6 +16,7 @@ from apps.templates.models import Template
 def get_user_credits(request):
     try:
         wallet = request.user.credit_wallet
+        remaining = wallet.total_credits - wallet.used_credits
     except UserCredits.DoesNotExist:
         return Response({
             "total_credits": 0,
@@ -26,7 +27,7 @@ def get_user_credits(request):
     return Response({
         "total_credits": wallet.total_credits,
         "used_credits": wallet.used_credits,
-        "remaining_credits": wallet.remaining_credits()
+        "remaining_credits": remaining
     })
 
 
@@ -53,12 +54,12 @@ def deduct_credits_for_template(request):
     except UserCredits.DoesNotExist:
         return Response({"error": "Wallet not found"}, status=400)
 
-    # ATOMIC TRANSACTION (VERY IMPORTANT)
     with transaction.atomic():
 
         wallet.refresh_from_db()
 
-        remaining = wallet.remaining_credits()
+        # ✅ SAFE calculation
+        remaining = wallet.total_credits - wallet.used_credits
 
         if remaining < cost:
             return Response({
@@ -67,27 +68,29 @@ def deduct_credits_for_template(request):
                 "remaining": remaining
             }, status=400)
 
-        # Deduct credits safely
+        # ✅ Deduct safely
         wallet.used_credits = F("used_credits") + cost
         wallet.save(allow_used_update=True)
 
-        # refresh to get updated value
+        # ✅ Reload actual values
         wallet.refresh_from_db()
 
-        # Log transaction
+        remaining_after = wallet.total_credits - wallet.used_credits
+
+        # ✅ Log transaction
         CreditTransaction.objects.create(
             user=request.user,
             template=template,
-            feature=None,  # optional
+            feature=None,
             amount=cost,
             transaction_type="deduct",
-            balance_after=wallet.remaining_credits(),
+            balance_after=remaining_after,
             description=f"Used template: {template.name}"
         )
 
     return Response({
         "message": "Credits deducted successfully",
-        "remaining_credits": wallet.remaining_credits()
+        "remaining_credits": remaining_after
     })
 
 
@@ -102,27 +105,32 @@ def add_credits(request):
     if not amount:
         return Response({"error": "amount is required"}, status=400)
 
+    amount = int(amount)
+
     try:
         wallet = request.user.credit_wallet
     except UserCredits.DoesNotExist:
         wallet = UserCredits.objects.create(user=request.user)
 
     with transaction.atomic():
-        wallet.total_credits = F("total_credits") + int(amount)
+
+        wallet.total_credits = F("total_credits") + amount
         wallet.save()
 
         wallet.refresh_from_db()
+
+        remaining_after = wallet.total_credits - wallet.used_credits
 
         CreditTransaction.objects.create(
             user=request.user,
             amount=amount,
             transaction_type="add",
-            balance_after=wallet.remaining_credits(),
+            balance_after=remaining_after,
             description="Credits added"
         )
 
     return Response({
         "message": "Credits added",
         "total_credits": wallet.total_credits,
-        "remaining_credits": wallet.remaining_credits()
+        "remaining_credits": remaining_after
     })
