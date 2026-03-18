@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from .models import Generation
 from apps.services.firebase_storage import upload_generated_file
+from apps.features.models import Features 
 
 FASTAPI_GENERATE_URL = settings.FASTAPI_GENERATE_URL
 
@@ -33,6 +34,10 @@ def run_generation(self, generation_id):
         model = None
         schema = None
         prompt_template = None
+
+        if feature:
+            if feature.flow_type == "template" and not template:
+                raise Exception("Template flow required before execution")
 
         # ============================
         # TEMPLATE FLOW

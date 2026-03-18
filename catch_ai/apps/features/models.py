@@ -1,6 +1,6 @@
 from django.db import models
 from django.core.exceptions import ValidationError
-from apps.templates.models import AIModel
+from apps.templates.models import AIModel, Template   
 import uuid
 
 
@@ -14,7 +14,13 @@ FEATURE_CHOICES = [
     ("image_colorize", "Image Colorize")
 ]
 
-# Create your models here.
+
+FLOW_TYPE_CHOICES = [
+    ("ai", "AI Generation"),
+    ("template", "Template Flow")
+]
+
+
 class Features(models.Model):
 
     id = models.CharField(primary_key=True, max_length=20, editable=False)
@@ -26,6 +32,22 @@ class Features(models.Model):
     feature_type = models.CharField(
         max_length=50,
         choices=FEATURE_CHOICES
+    )
+
+    # Flow type
+    flow_type = models.CharField(
+        max_length=20,
+        choices=FLOW_TYPE_CHOICES,
+        default="ai"
+    )
+
+    # Template mapping
+    template = models.ForeignKey(
+        Template,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="features"
     )
 
     allowed_models = models.ManyToManyField(
@@ -65,6 +87,13 @@ class Features(models.Model):
         if self.default_model:
             if self.default_model.feature_type != self.feature_type:
                 raise ValidationError("Model feature_type must match template feature_type")
+
+        # template validation
+        if self.flow_type == "template" and not self.template:
+            raise ValidationError("Template must be selected for template flow")
+
+        if self.flow_type == "ai" and self.template:
+            raise ValidationError("AI flow should not have a template")
 
     def save(self, *args, **kwargs):
         if not self.id:

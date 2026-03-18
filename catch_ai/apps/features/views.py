@@ -28,7 +28,31 @@ def list_features(request):
             "is_premium": f.is_premium,
             "input_schema": f.input_schema,
             "default_settings": f.default_settings,
+
+           
+            "flow_type": f.flow_type,
+            "template_id": f.template.id if f.template else None,
         })
 
     return Response(data)
 
+
+# ==========================================================
+# SINGLE FEATURE
+# ==========================================================
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_feature(request, feature_id):
+
+    feature = get_object_or_404(Features, id=feature_id)
+
+    return Response({
+        "id": feature.id,
+        "name": feature.name,
+        "feature_type": feature.feature_type,
+        "credit_cost": feature.credit_cost,
+        "flow_type": feature.flow_type,
+        "template_id": feature.template.id if feature.template else None,
+        "input_schema": feature.input_schema,
+        "default_settings": feature.default_settings,
+    })
