@@ -195,10 +195,10 @@ class TemplateAdmin(admin.ModelAdmin):
                     "Default model must be in allowed_models"
                 )
 
-            if obj.default_model.feature_type != obj.feature_type:
-                raise ValidationError(
-                    "Model feature_type must match template feature_type"
-                )
+            # if obj.default_model.feature_type != obj.feature_type:
+            #     raise ValidationError(
+            #         "Model feature_type must match template feature_type"
+            #     )
 
         # ========================
         # COVER IMAGE
@@ -269,6 +269,7 @@ class FeaturesAdmin(admin.ModelAdmin):
         "id",
         "name",
         "feature_type",
+        "flow_type",   # ✅ NEW
         "credit_cost",
         "is_premium",
         "is_active",
@@ -278,6 +279,7 @@ class FeaturesAdmin(admin.ModelAdmin):
 
     list_filter = (
         "feature_type",
+        "flow_type",   # ✅ NEW
         "is_active",
         "is_premium"
     )
@@ -290,35 +292,36 @@ class FeaturesAdmin(admin.ModelAdmin):
 
     ordering = ("display_order",)
 
-    fieldsets = (
-        ("Basic Info", {
-            "fields": (
-                "id",
-                "name",
-                "feature_type",
-                "credit_cost",
-                "is_premium",
-                "is_active",
-                "display_order",
-            )
-        }),
+    # ============================
+    # DYNAMIC FIELDS (IMPORTANT)
+    # ============================
+    def get_fields(self, request, obj=None):
+        fields = [
+            "id",
+            "name",
+            "feature_type",
+            "flow_type",
+            "credit_cost",
+            "is_premium",
+            "is_active",
+            "display_order",
+            "allowed_models",
+            "default_model",
+            "input_schema",
+            "default_settings",
+            "created_at",
+            "updated_at",
+        ]
 
-        ("AI Configuration", {
-            "fields": (
-                "allowed_models",
-                "default_model",
-                "input_schema",
-                "default_settings",
-            )
-        }),
+        # ✅ ALWAYS show template on add page
+        if obj is None:
+            fields.insert(4, "template")
 
-        ("Timestamps", {
-            "fields": (
-                "created_at",
-                "updated_at",
-            )
-        }),
-    )
+        # ✅ Show template when editing and flow_type = template
+        elif obj.flow_type == "template":
+            fields.insert(4, "template")
+
+        return fields
 
     # ============================
     # FILTER DEFAULT MODEL BY FEATURE TYPE
@@ -344,12 +347,13 @@ class FeaturesAdmin(admin.ModelAdmin):
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     # ============================
-    # VALIDATION ON SAVE
+    # VALIDATION ON SAVE (ENHANCED)
     # ============================
     def save_model(self, request, obj, form, change):
 
         super().save_model(request, obj, form, change)
 
+        # ✅ MODEL VALIDATION
         if obj.default_model:
 
             if obj.default_model not in obj.allowed_models.all():
@@ -357,9 +361,16 @@ class FeaturesAdmin(admin.ModelAdmin):
                     "Default model must be in allowed_models"
                 )
 
-            if obj.default_model.feature_type != obj.feature_type:
-                raise ValidationError(
-                    "Model feature_type must match feature feature_type"
-                )
+            # if obj.default_model.feature_type != obj.feature_type:
+            #     raise ValidationError(
+            #         "Model feature_type must match feature feature_type"
+            #     )
+
+        # ✅ TEMPLATE VALIDATION
+        if obj.flow_type == "template" and not obj.template:
+            raise ValidationError("Template is required for template flow")
+
+        if obj.flow_type == "ai" and obj.template:
+            raise ValidationError("AI flow should not have a template")
 
         obj.save()
