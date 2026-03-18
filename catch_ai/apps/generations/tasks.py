@@ -98,6 +98,8 @@ def run_generation(self, generation_id):
 
                 wallet.refresh_from_db()
 
+                remaining = wallet.remaining_credits()
+
                 # Log transaction
                 CreditTransaction.objects.create(
                     user=generation.user,
