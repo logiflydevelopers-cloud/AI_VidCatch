@@ -6,8 +6,8 @@ from django.core.exceptions import ValidationError
 FEATURE_CHOICES = [
     ("text_to_video", "Text to Video"),
     ("image_to_video", "Image to Video"),
-    ("image_generation", "Image Generation"),
     ("image_edit", "Image Edit"),
+    ("couple_wallpaper", "Couple Wallpaper"),
     ("background_remove", "Background Remove"),
     ("background_change", "Background Change"),
     ("image_upscale", "Image Upscale"),
