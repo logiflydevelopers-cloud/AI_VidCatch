@@ -4,10 +4,14 @@ import traceback
 from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
+from django.db import transaction
+from django.db.models import F
 
 from .models import Generation
 from apps.services.firebase_storage import upload_generated_file
-from apps.features.models import Features 
+from apps.features.models import Features
+from apps.credits.models import UserCredits, CreditTransaction
+
 
 FASTAPI_GENERATE_URL = settings.FASTAPI_GENERATE_URL
 
@@ -17,8 +21,11 @@ def run_generation(self, generation_id):
 
     generation = Generation.objects.select_related(
         "template__default_model",
-        "feature__default_model"
+        "feature__default_model",
+        "user"
     ).get(id=generation_id)
+
+    cost = 0  # track for logging/refund if needed
 
     try:
         # ============================
@@ -35,6 +42,9 @@ def run_generation(self, generation_id):
         schema = None
         prompt_template = None
 
+        # ============================
+        # FLOW VALIDATION
+        # ============================
         if feature:
             if feature.flow_type == "template" and not template:
                 raise Exception("Template flow required before execution")
@@ -62,6 +72,44 @@ def run_generation(self, generation_id):
             raise Exception("No default model configured")
 
         # ============================
+        # CREDIT CHECK & DEDUCTION
+        # ============================
+        if template:
+            cost = template.credit_cost
+
+            try:
+                wallet = generation.user.credit_wallet
+            except UserCredits.DoesNotExist:
+                raise Exception("User wallet not found")
+
+            with transaction.atomic():
+                wallet.refresh_from_db()
+
+                remaining = wallet.remaining_credits()
+
+                if remaining < cost:
+                    raise Exception(
+                        f"Not enough credits. Required: {cost}, Available: {remaining}"
+                    )
+
+                # Deduct credits safely
+                wallet.used_credits = F("used_credits") + cost
+                wallet.save(allow_used_update=True)
+
+                wallet.refresh_from_db()
+
+                # Log transaction
+                CreditTransaction.objects.create(
+                    user=generation.user,
+                    template=template,
+                    feature=feature if feature else None,
+                    amount=cost,
+                    transaction_type="deduct",
+                    balance_after=wallet.remaining_credits(),
+                    description=f"Generation using template: {template.name}"
+                )
+
+        # ============================
         # SNAPSHOT
         # ============================
         generation.model_name = model.model_name
@@ -83,8 +131,6 @@ def run_generation(self, generation_id):
         clean_inputs = {
             k: v for k, v in user_inputs.items() if k in allowed_fields
         }
-
-        print("CLEAN INPUTS:", clean_inputs)
 
         if not clean_inputs:
             raise Exception("Inputs became empty after filtering")
@@ -150,7 +196,7 @@ def run_generation(self, generation_id):
         generation.save()
 
         try:
-            # retry only for network errors
+            # Retry only for network errors
             if isinstance(exc, requests.exceptions.RequestException):
                 raise self.retry(exc=exc)
 

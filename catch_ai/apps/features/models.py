@@ -27,7 +27,7 @@ class Features(models.Model):
 
     name = models.CharField(max_length=255)
 
-    credit_cost = models.IntegerField()
+    credit_cost = models.PositiveIntegerField(default=0)
 
     feature_type = models.CharField(
         max_length=50,

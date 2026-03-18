@@ -46,7 +46,7 @@ class AIModel(models.Model):
     provider = models.CharField(max_length=50, blank=True, null=True)
 
     # cost per generation (credits)
-    credit_cost = models.IntegerField(default=1)
+    credit_cost = models.PositiveIntegerField(default=1)
 
     # default model for feature
     is_default = models.BooleanField(default=False)
@@ -81,7 +81,7 @@ class Template(models.Model):
         default="new"
     )
 
-    credit_cost = models.IntegerField()
+    credit_cost = models.PositiveIntegerField(default=0)
 
     feature_type = models.CharField(
         max_length=50,
