@@ -22,7 +22,6 @@ def run_generation(self, generation_id, payload):
     generation = Generation.objects.select_related(
         "template",
         "feature",
-        "model",   # ✅ IMPORTANT (make sure this FK exists)
         "user"
     ).get(id=generation_id)
 
