@@ -14,9 +14,6 @@ from .tasks import run_generation
 # ==========================================================
 # CREATE GENERATION (TEMPLATE + FEATURE)
 # ==========================================================
-# ==========================================================
-# CREATE GENERATION (TEMPLATE + FEATURE)
-# ==========================================================
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def create_generation(request):
@@ -28,28 +25,23 @@ def create_generation(request):
         serializer = GenerateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        template_id = serializer.validated_data.get("template_id")
-        feature_id = serializer.validated_data.get("feature_id")
-        input_data = serializer.validated_data["input_data"]
+        data = serializer.validated_data
 
-        template = None
-        feature = None
+        template = data.get("template_obj")
+        feature = data.get("feature_obj")
+        input_data = data["input_data"]
+        user_settings = data.get("settings")
+
         model = None
-        feature_type = None
+        feature_key = None
         credit_cost = 1
         model_provider = None
         settings = None
 
         # ============================
-        # TEMPLATE FLOW
+        # RESOLVE SOURCE
         # ============================
-        if template_id:
-            template = get_object_or_404(
-                Template,
-                id=template_id,
-                is_active=True
-            )
-
+        if template:
             if not template.default_model:
                 return Response(
                     {"error": "No model configured for this template"},
@@ -57,24 +49,11 @@ def create_generation(request):
                 )
 
             model = template.default_model
-            feature_type = model.feature_type
+            feature_key = model.feature_type
             credit_cost = model.credit_cost or template.credit_cost
             model_provider = getattr(model, "provider", None)
 
-            # optional template settings
-            if hasattr(template, "settings") and template.settings:
-                settings = template.settings
-
-        # ============================
-        # FEATURE FLOW
-        # ============================
-        elif feature_id:
-            feature = get_object_or_404(
-                Features,
-                id=feature_id,
-                is_active=True
-            )
-
+        elif feature:
             if not feature.default_model:
                 return Response(
                     {"error": "No model configured for this feature"},
@@ -82,22 +61,32 @@ def create_generation(request):
                 )
 
             model = feature.default_model
-            feature_type = feature.feature_type
+            feature_key = feature.feature_type
             credit_cost = model.credit_cost or feature.credit_cost
             model_provider = getattr(model, "provider", None)
-
-            # optional feature settings
-            if hasattr(feature, "default_settings") and feature.default_settings:
-                settings = feature.default_settings
 
         else:
             return Response({"error": "Invalid request"}, status=400)
 
         # ============================
-        # BUILD STANDARD PAYLOAD
+        # RESOLVE SETTINGS
+        # Priority:
+        # user > template > feature
+        # ============================
+        if user_settings:
+            settings = user_settings
+
+        elif template and getattr(template, "default_settings", None):
+            settings = template.default_settings
+
+        elif feature and getattr(feature, "default_settings", None):
+            settings = feature.default_settings
+
+        # ============================
+        # BUILD PAYLOAD
         # ============================
         payload = {
-            "feature": feature_type,
+            "feature": feature_key,
             "model": model.model_name,
             "inputs": input_data
         }
@@ -121,14 +110,14 @@ def create_generation(request):
 
                 # snapshot
                 model_name=model.model_name,
-                feature_type=feature_type,
+                feature_type=feature_key,
                 model_provider=model_provider,
                 credit_used=credit_cost,
 
-                # NEW 🔥
+                # debug
                 request_payload=payload,
 
-                # optional UX
+                # UX
                 input_summary=(
                     template.name if template else feature.name
                 )

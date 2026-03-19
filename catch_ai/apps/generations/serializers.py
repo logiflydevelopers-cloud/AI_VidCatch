@@ -4,21 +4,25 @@ from apps.templates.models import Template
 from apps.features.models import Features
 
 
+
 class GenerateSerializer(serializers.Serializer):
 
     template_id = serializers.IntegerField(required=False)
     feature_id = serializers.IntegerField(required=False)
 
-    # future-ready (optional)
+    # optional (future use)
     model_id = serializers.IntegerField(required=False)
 
     input_data = serializers.JSONField()
+
+    settings = serializers.JSONField(required=False)
 
     def validate(self, data):
 
         template_id = data.get("template_id")
         feature_id = data.get("feature_id")
         input_data = data.get("input_data", {})
+        settings = data.get("settings")
 
         # =====================================
         # VALIDATE SOURCE
@@ -34,14 +38,20 @@ class GenerateSerializer(serializers.Serializer):
             )
 
         # =====================================
-        # VALIDATE INPUT DATA TYPE
+        # VALIDATE TYPES
         # =====================================
         if not isinstance(input_data, dict):
             raise serializers.ValidationError("input_data must be an object")
 
+        if settings and not isinstance(settings, dict):
+            raise serializers.ValidationError("settings must be an object")
+
         # =====================================
-        # TEMPLATE FLOW
+        # FETCH SOURCE (avoid duplicate queries later)
         # =====================================
+        template = None
+        feature = None
+
         if template_id:
             try:
                 template = Template.objects.get(id=template_id, is_active=True)
@@ -50,9 +60,6 @@ class GenerateSerializer(serializers.Serializer):
 
             schema = template.input_schema or {}
 
-        # =====================================
-        # FEATURE FLOW
-        # =====================================
         else:
             try:
                 feature = Features.objects.get(id=feature_id, is_active=True)
@@ -61,36 +68,76 @@ class GenerateSerializer(serializers.Serializer):
 
             schema = feature.input_schema or {}
 
+        # attach to validated_data (avoid re-query in view)
+        data["template_obj"] = template
+        data["feature_obj"] = feature
+
         # =====================================
-        # VALIDATE AGAINST SCHEMA
+        # VALIDATE AGAINST INPUT SCHEMA
         # =====================================
         fields = schema.get("fields", [])
-
-        field_names = [f.get("name") for f in fields]
 
         clean_input = {}
 
         for field in fields:
             name = field.get("name")
             required = field.get("required", False)
+            field_type = field.get("type")
 
+            value = input_data.get(name)
+
+            # required validation
             if required and name not in input_data:
                 raise serializers.ValidationError(f"{name} is required")
 
-            if name in input_data:
-                clean_input[name] = input_data[name]
+            if value is None:
+                continue
 
-        # If no schema → allow all inputs (important flexibility)
+            # =====================================
+            # TYPE VALIDATION (NEW)
+            # =====================================
+            if field_type == "number":
+                if not isinstance(value, (int, float)):
+                    raise serializers.ValidationError(f"{name} must be a number")
+
+            elif field_type == "string":
+                if not isinstance(value, str):
+                    raise serializers.ValidationError(f"{name} must be a string")
+
+            elif field_type == "image":
+                if not isinstance(value, str):
+                    raise serializers.ValidationError(f"{name} must be an image URL")
+
+            # =====================================
+            # LIMIT VALIDATION
+            # =====================================
+            min_val = field.get("min")
+            max_val = field.get("max")
+
+            if isinstance(value, (int, float)):
+                if min_val is not None and value < min_val:
+                    raise serializers.ValidationError(f"{name} must be >= {min_val}")
+
+                if max_val is not None and value > max_val:
+                    raise serializers.ValidationError(f"{name} must be <= {max_val}")
+
+            clean_input[name] = value
+
+        # If no schema → allow all inputs
         if not fields:
             clean_input = input_data
 
-        # =====================================
-        # SAVE CLEANED DATA
-        # =====================================
         data["input_data"] = clean_input
 
-        return data
+        # =====================================
+        # SETTINGS VALIDATION
+        # =====================================
+        if settings:
+            # You can later add schema validation for settings too
+            data["settings"] = settings
 
+        return data
+    
 
 class GenerationSerializer(serializers.ModelSerializer):
 
