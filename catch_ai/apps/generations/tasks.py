@@ -6,11 +6,11 @@ from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import F
-from apps.features.models import Features 
+
+from apps.features.models import Features
 from .models import Generation
 from apps.services.firebase_storage import upload_generated_file
 from apps.credits.models import UserCredits, CreditTransaction
-
 
 
 FASTAPI_GENERATE_URL = settings.FASTAPI_GENERATE_URL
@@ -33,11 +33,9 @@ def run_generation(self, generation_id, payload):
 
     try:
         # ============================
-        #  COST + MODEL 
+        # ✅ COST + MODEL
         # ============================
         if generation.feature:
-
-            # use default model (since you don't store model)
             model = generation.feature.default_model
 
             if not model:
@@ -72,7 +70,6 @@ def run_generation(self, generation_id, payload):
                     user=generation.user
                 )
 
-                # 🔥 CORRECT CREDIT CALCULATION
                 available_credits = wallet.total_credits - wallet.used_credits
 
                 if available_credits < cost:
@@ -82,9 +79,10 @@ def run_generation(self, generation_id, payload):
 
                 before = available_credits
 
-                # ✅ Deduct ONLY from used_credits
-                wallet.used_credits = F("used_credits") + cost
-                wallet.save()
+                # ✅ FIX: use update instead of save
+                UserCredits.objects.filter(id=wallet.id).update(
+                    used_credits=F("used_credits") + cost
+                )
 
                 wallet.refresh_from_db()
 
@@ -102,7 +100,6 @@ def run_generation(self, generation_id, payload):
                     description=f"Generation ({generation.source_type})"
                 )
 
-                # mark deducted
                 generation.is_credits_deducted = True
                 generation.save(update_fields=["is_credits_deducted"])
 
@@ -164,9 +161,10 @@ def run_generation(self, generation_id, payload):
 
                     before = wallet.total_credits - wallet.used_credits
 
-                    # ✅ refund by reducing used_credits
-                    wallet.used_credits = F("used_credits") - generation.credit_used
-                    wallet.save()
+                    # ✅ FIX: use update instead of save
+                    UserCredits.objects.filter(id=wallet.id).update(
+                        used_credits=F("used_credits") - generation.credit_used
+                    )
 
                     wallet.refresh_from_db()
 
@@ -181,7 +179,6 @@ def run_generation(self, generation_id, payload):
                         description=f"Refund for failed generation {generation.id}"
                     )
 
-                    # mark refunded
                     generation.is_refunded = True
                     generation.save(update_fields=["is_refunded"])
 
