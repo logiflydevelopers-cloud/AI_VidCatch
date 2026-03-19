@@ -33,21 +33,15 @@ def run_generation(self, generation_id, payload):
 
     try:
         # ============================
-        # ✅ DETERMINE COST (FIXED)
-        # ============================
-        # ============================
-        # ✅ DETERMINE COST + VALIDATE MODEL
+        #  COST + MODEL 
         # ============================
         if generation.feature:
 
-            # validate model
-            if generation.model:
-                if generation.model not in generation.feature.allowed_models.all():
-                    raise Exception("Invalid model for this feature")
-            else:
-                # fallback to default model
-                generation.model = generation.feature.default_model
-                generation.save(update_fields=["model"])
+            # use default model (since you don't store model)
+            model = generation.feature.default_model
+
+            if not model:
+                raise Exception("No default model set for this feature")
 
             cost = generation.feature.credit_cost
 
