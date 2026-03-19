@@ -26,14 +26,14 @@ def run_generation(self, generation_id, payload):
     ).get(id=generation_id)
 
     # ============================
-    # ✅ IDEMPOTENCY CHECK
+    # IDEMPOTENCY CHECK
     # ============================
     if generation.status == "completed":
         return "Already completed"
 
     try:
         # ============================
-        # ✅ COST + MODEL
+        # COST + MODEL
         # ============================
         if generation.feature:
             model = generation.feature.default_model
@@ -61,7 +61,7 @@ def run_generation(self, generation_id, payload):
         generation.save(update_fields=["credit_used", "status", "started_at"])
 
         # ============================
-        # ✅ CREDIT DEDUCTION (FIXED)
+        # CREDIT DEDUCTION
         # ============================
         if not generation.is_credits_deducted:
 
@@ -79,7 +79,6 @@ def run_generation(self, generation_id, payload):
 
                 before = available_credits
 
-                # ✅ FIX: use update instead of save
                 UserCredits.objects.filter(id=wallet.id).update(
                     used_credits=F("used_credits") + cost
                 )
@@ -104,7 +103,7 @@ def run_generation(self, generation_id, payload):
                 generation.save(update_fields=["is_credits_deducted"])
 
         # ============================
-        # ✅ CALL FASTAPI
+        # CALL FASTAPI
         # ============================
         response = requests.post(
             FASTAPI_GENERATE_URL,
@@ -121,10 +120,15 @@ def run_generation(self, generation_id, payload):
         if not ai_result_url:
             raise Exception("AI result URL missing")
 
-        result_type = data.get("type", "image")
+        if ai_result_url.endswith((".mp4", ".mov", ".webm")):
+            result_type = "video"
+        elif ai_result_url.endswith((".png", ".jpg", ".jpeg", ".webp")):
+            result_type = "image"
+        else:
+            result_type = "file"
 
         # ============================
-        # ✅ UPLOAD TO FIREBASE
+        # UPLOAD TO FIREBASE
         # ============================
         firebase_url = upload_generated_file(
             ai_result_url,
@@ -132,7 +136,7 @@ def run_generation(self, generation_id, payload):
         )
 
         # ============================
-        # ✅ SUCCESS
+        # SUCCESS
         # ============================
         generation.result_url = firebase_url
         generation.result_type = result_type
@@ -146,7 +150,7 @@ def run_generation(self, generation_id, payload):
         traceback.print_exc()
 
         # ============================
-        # 🔥 SAFE REFUND (FIXED)
+        # SAFE REFUND
         # ============================
         try:
             if (
@@ -161,7 +165,6 @@ def run_generation(self, generation_id, payload):
 
                     before = wallet.total_credits - wallet.used_credits
 
-                    # ✅ FIX: use update instead of save
                     UserCredits.objects.filter(id=wallet.id).update(
                         used_credits=F("used_credits") - generation.credit_used
                     )

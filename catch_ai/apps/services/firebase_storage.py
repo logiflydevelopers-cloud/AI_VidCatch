@@ -57,7 +57,7 @@ def upload_generated_file(file_url, user_id):
     Download AI generated file (image/video) and upload to Firebase
     """
 
-    response = requests.get(file_url, timeout=60)
+    response = requests.get(file_url, timeout=120)
 
     if response.status_code != 200:
         raise Exception("Failed to download generated file")
