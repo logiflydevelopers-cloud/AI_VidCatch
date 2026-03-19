@@ -83,12 +83,28 @@ def create_generation(request):
             settings = feature.default_settings
 
         # ============================
+        # BUILD FINAL INPUT (PROMPT INJECTION)
+        # ============================
+        final_input_data = input_data.copy()
+
+        if template and template.prompt_template:
+            try:
+                final_prompt = template.prompt_template.format(**input_data)
+            except KeyError as e:
+                return Response(
+                    {"error": f"Missing input for prompt variable: {str(e)}"},
+                    status=400
+                )
+
+            final_input_data["prompt"] = final_prompt
+
+        # ============================
         # BUILD PAYLOAD
         # ============================
         payload = {
             "feature": feature_key,
             "model": model.model_name,
-            "inputs": input_data
+            "inputs": final_input_data
         }
 
         if settings:
@@ -105,7 +121,7 @@ def create_generation(request):
                 template=template,
                 feature=feature,
 
-                input_data=input_data,
+                input_data=final_input_data,
                 status="pending",
 
                 # snapshot
