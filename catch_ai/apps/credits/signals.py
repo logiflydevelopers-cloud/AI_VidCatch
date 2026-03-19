@@ -12,5 +12,5 @@ def create_user_credits(sender, instance, created, **kwargs):
     if created:
         UserCredits.objects.create(
             user=instance,
-            total_credits=0  # default free credits
+            total_credits=1000  # default free credits
         )

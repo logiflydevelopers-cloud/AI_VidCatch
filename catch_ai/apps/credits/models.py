@@ -18,7 +18,7 @@ class UserCredits(models.Model):
 
     total_credits = models.PositiveIntegerField(default=0)   # lifetime purchased
     used_credits = models.PositiveIntegerField(default=0)    # analytics only
-    balance = models.PositiveIntegerField(default=0)         # 🔥 MAIN FIELD
+    balance = models.PositiveIntegerField(default=0)         # MAIN FIELD
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -86,8 +86,7 @@ class CreditTransaction(models.Model):
 
     amount = models.PositiveIntegerField()
     transaction_type = models.CharField(max_length=10, choices=TRANSACTION_TYPE)
-
-    # 🔥 NEW (important for audit/debug)
+    
     balance_before = models.PositiveIntegerField(null=True, blank=True)
     balance_after = models.PositiveIntegerField(null=True, blank=True)
 
