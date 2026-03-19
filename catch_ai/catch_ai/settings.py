@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
+    'django_json_widget',
     'apps.users',
     'apps.templates',
     'apps.generations',
