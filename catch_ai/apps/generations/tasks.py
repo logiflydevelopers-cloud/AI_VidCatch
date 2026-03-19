@@ -6,11 +6,11 @@ from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
 from django.db.models import F
-
+from apps.features.models import Features 
 from .models import Generation
 from apps.services.firebase_storage import upload_generated_file
 from apps.credits.models import UserCredits, CreditTransaction
-from apps.features.models import FeatureModel
+
 
 
 FASTAPI_GENERATE_URL = settings.FASTAPI_GENERATE_URL
@@ -36,16 +36,21 @@ def run_generation(self, generation_id, payload):
         # ============================
         # ✅ DETERMINE COST (FIXED)
         # ============================
-        if generation.feature and generation.model:
-            try:
-                feature_model = FeatureModel.objects.get(
-                    feature=generation.feature,
-                    model=generation.model,
-                    is_active=True
-                )
-                cost = feature_model.credits_required
-            except FeatureModel.DoesNotExist:
-                raise Exception("Invalid model for this feature")
+        # ============================
+        # ✅ DETERMINE COST + VALIDATE MODEL
+        # ============================
+        if generation.feature:
+
+            # validate model
+            if generation.model:
+                if generation.model not in generation.feature.allowed_models.all():
+                    raise Exception("Invalid model for this feature")
+            else:
+                # fallback to default model
+                generation.model = generation.feature.default_model
+                generation.save(update_fields=["model"])
+
+            cost = generation.feature.credit_cost
 
         elif generation.template:
             cost = generation.template.credit_cost
