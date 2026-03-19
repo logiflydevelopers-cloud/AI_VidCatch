@@ -7,11 +7,11 @@ from apps.features.models import Features
 
 class GenerateSerializer(serializers.Serializer):
 
-    template_id = serializers.IntegerField(required=False)
-    feature_id = serializers.IntegerField(required=False)
+    template_id = serializers.CharField(required=False)
+    feature_id = serializers.CharField(required=False)
 
     # optional (future use)
-    model_id = serializers.IntegerField(required=False)
+    model_id = serializers.CharField(required=False)
 
     input_data = serializers.JSONField()
 
