@@ -10,6 +10,7 @@ from django.db.models import F
 from .models import Generation
 from apps.services.firebase_storage import upload_generated_file
 from apps.credits.models import UserCredits, CreditTransaction
+from apps.features.models import FeatureModel
 
 
 FASTAPI_GENERATE_URL = settings.FASTAPI_GENERATE_URL
@@ -21,21 +22,34 @@ def run_generation(self, generation_id, payload):
     generation = Generation.objects.select_related(
         "template",
         "feature",
+        "model",   # ✅ IMPORTANT (make sure this FK exists)
         "user"
     ).get(id=generation_id)
 
-    # ✅ HARD IDEMPOTENCY CHECK
+    # ============================
+    # ✅ IDEMPOTENCY CHECK
+    # ============================
     if generation.status == "completed":
         return "Already completed"
 
     try:
         # ============================
-        # DETERMINE COST
+        # ✅ DETERMINE COST (FIXED)
         # ============================
-        if generation.template:
+        if generation.feature and generation.model:
+            try:
+                feature_model = FeatureModel.objects.get(
+                    feature=generation.feature,
+                    model=generation.model,
+                    is_active=True
+                )
+                cost = feature_model.credits_required
+            except FeatureModel.DoesNotExist:
+                raise Exception("Invalid model for this feature")
+
+        elif generation.template:
             cost = generation.template.credit_cost
-        elif generation.feature:
-            cost = generation.feature.credit_cost
+
         else:
             cost = 1
 
@@ -51,7 +65,7 @@ def run_generation(self, generation_id, payload):
         generation.save(update_fields=["credit_used", "status", "started_at"])
 
         # ============================
-        # CREDIT DEDUCTION (ONLY ONCE 🔥)
+        # ✅ CREDIT DEDUCTION (FIXED)
         # ============================
         if not generation.is_credits_deducted:
 
@@ -60,19 +74,23 @@ def run_generation(self, generation_id, payload):
                     user=generation.user
                 )
 
-                if wallet.balance < cost:
+                # 🔥 CORRECT CREDIT CALCULATION
+                available_credits = wallet.total_credits - wallet.used_credits
+
+                if available_credits < cost:
                     raise Exception(
-                        f"Not enough credits. Required: {cost}, Available: {wallet.balance}"
+                        f"Not enough credits. Required: {cost}, Available: {available_credits}"
                     )
 
-                before = wallet.balance
+                before = available_credits
 
-                wallet.balance = F("balance") - cost
+                # ✅ Deduct ONLY from used_credits
                 wallet.used_credits = F("used_credits") + cost
                 wallet.save()
 
                 wallet.refresh_from_db()
-                after = wallet.balance
+
+                after = wallet.total_credits - wallet.used_credits
 
                 CreditTransaction.objects.create(
                     id=f"txn_{generation.id}",
@@ -86,12 +104,12 @@ def run_generation(self, generation_id, payload):
                     description=f"Generation ({generation.source_type})"
                 )
 
-                # ✅ mark deducted
+                # mark deducted
                 generation.is_credits_deducted = True
                 generation.save(update_fields=["is_credits_deducted"])
 
         # ============================
-        # CALL FASTAPI
+        # ✅ CALL FASTAPI
         # ============================
         response = requests.post(
             FASTAPI_GENERATE_URL,
@@ -111,7 +129,7 @@ def run_generation(self, generation_id, payload):
         result_type = data.get("type", "image")
 
         # ============================
-        # UPLOAD TO FIREBASE
+        # ✅ UPLOAD TO FIREBASE
         # ============================
         firebase_url = upload_generated_file(
             ai_result_url,
@@ -119,7 +137,7 @@ def run_generation(self, generation_id, payload):
         )
 
         # ============================
-        # SUCCESS
+        # ✅ SUCCESS
         # ============================
         generation.result_url = firebase_url
         generation.result_type = result_type
@@ -133,7 +151,7 @@ def run_generation(self, generation_id, payload):
         traceback.print_exc()
 
         # ============================
-        # 🔥 SAFE REFUND (ONLY ONCE)
+        # 🔥 SAFE REFUND (FIXED)
         # ============================
         try:
             if (
@@ -146,14 +164,15 @@ def run_generation(self, generation_id, payload):
                         user=generation.user
                     )
 
-                    before = wallet.balance
+                    before = wallet.total_credits - wallet.used_credits
 
-                    wallet.balance = F("balance") + generation.credit_used
+                    # ✅ refund by reducing used_credits
                     wallet.used_credits = F("used_credits") - generation.credit_used
                     wallet.save()
 
                     wallet.refresh_from_db()
-                    after = wallet.balance
+
+                    after = wallet.total_credits - wallet.used_credits
 
                     CreditTransaction.objects.create(
                         user=generation.user,
@@ -164,7 +183,7 @@ def run_generation(self, generation_id, payload):
                         description=f"Refund for failed generation {generation.id}"
                     )
 
-                    # ✅ mark refunded
+                    # mark refunded
                     generation.is_refunded = True
                     generation.save(update_fields=["is_refunded"])
 
