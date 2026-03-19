@@ -28,9 +28,6 @@ def list_features(request):
             "is_premium": f.is_premium,
             "input_schema": f.input_schema,
             "default_settings": f.default_settings,
-
-           
-            "flow_type": f.flow_type,
             "template_id": f.template.id if f.template else None,
         })
 
@@ -51,7 +48,6 @@ def get_feature(request, feature_id):
         "name": feature.name,
         "feature_type": feature.feature_type,
         "credit_cost": feature.credit_cost,
-        "flow_type": feature.flow_type,
         "template_id": feature.template.id if feature.template else None,
         "input_schema": feature.input_schema,
         "default_settings": feature.default_settings,

@@ -24,52 +24,74 @@ def run_generation(self, generation_id, payload):
         "user"
     ).get(id=generation_id)
 
-    cost = generation.credit_used or 1
+    # ✅ HARD IDEMPOTENCY CHECK
+    if generation.status == "completed":
+        return "Already completed"
 
     try:
         # ============================
-        # SET PROCESSING
+        # DETERMINE COST
         # ============================
+        if generation.template:
+            cost = generation.template.credit_cost
+        elif generation.feature:
+            cost = generation.feature.credit_cost
+        else:
+            cost = 1
+
+        if cost <= 0:
+            raise Exception("Invalid credit cost")
+
+        # Save cost only once
+        if not generation.credit_used:
+            generation.credit_used = cost
+
         generation.status = "processing"
-        generation.started_at = timezone.now()
-        generation.save()
+        generation.started_at = generation.started_at or timezone.now()
+        generation.save(update_fields=["credit_used", "status", "started_at"])
 
         # ============================
-        # CREDIT CHECK & DEDUCTION
+        # CREDIT DEDUCTION (ONLY ONCE 🔥)
         # ============================
-        try:
-            wallet = generation.user.credit_wallet
-        except UserCredits.DoesNotExist:
-            raise Exception("User wallet not found")
+        if not generation.is_credits_deducted:
 
-        with transaction.atomic():
-            wallet.refresh_from_db()
-
-            remaining = wallet.total_credits - wallet.used_credits
-
-            if remaining < cost:
-                raise Exception(
-                    f"Not enough credits. Required: {cost}, Available: {remaining}"
+            with transaction.atomic():
+                wallet = UserCredits.objects.select_for_update().get(
+                    user=generation.user
                 )
 
-            wallet.used_credits = F("used_credits") + cost
-            wallet.save(allow_used_update=True)
-            wallet.refresh_from_db()
+                if wallet.balance < cost:
+                    raise Exception(
+                        f"Not enough credits. Required: {cost}, Available: {wallet.balance}"
+                    )
 
-            remaining_after = wallet.total_credits - wallet.used_credits
+                before = wallet.balance
 
-            CreditTransaction.objects.create(
-                user=generation.user,
-                template=generation.template,
-                feature=generation.feature,
-                amount=cost,
-                transaction_type="deduct",
-                balance_after=remaining_after,
-                description=f"Generation ({generation.source_type})"
-            )
+                wallet.balance = F("balance") - cost
+                wallet.used_credits = F("used_credits") + cost
+                wallet.save()
+
+                wallet.refresh_from_db()
+                after = wallet.balance
+
+                CreditTransaction.objects.create(
+                    id=f"txn_{generation.id}",
+                    user=generation.user,
+                    template=generation.template,
+                    feature=generation.feature,
+                    amount=cost,
+                    transaction_type="deduct",
+                    balance_before=before,
+                    balance_after=after,
+                    description=f"Generation ({generation.source_type})"
+                )
+
+                # ✅ mark deducted
+                generation.is_credits_deducted = True
+                generation.save(update_fields=["is_credits_deducted"])
 
         # ============================
-        # CALL FASTAPI (🔥 CLEAN)
+        # CALL FASTAPI
         # ============================
         response = requests.post(
             FASTAPI_GENERATE_URL,
@@ -80,13 +102,9 @@ def run_generation(self, generation_id, payload):
         response.raise_for_status()
         data = response.json()
 
-        # ============================
-        # STORE RESPONSE PAYLOAD
-        # ============================
         generation.response_payload = data
 
         ai_result_url = data.get("result_url") or data.get("result")
-
         if not ai_result_url:
             raise Exception("AI result URL missing")
 
@@ -101,7 +119,7 @@ def run_generation(self, generation_id, payload):
         )
 
         # ============================
-        # SAVE SUCCESS
+        # SUCCESS
         # ============================
         generation.result_url = firebase_url
         generation.result_type = result_type
@@ -114,11 +132,49 @@ def run_generation(self, generation_id, payload):
     except Exception as exc:
         traceback.print_exc()
 
+        # ============================
+        # 🔥 SAFE REFUND (ONLY ONCE)
+        # ============================
+        try:
+            if (
+                generation.credit_used
+                and generation.is_credits_deducted
+                and not generation.is_refunded
+            ):
+                with transaction.atomic():
+                    wallet = UserCredits.objects.select_for_update().get(
+                        user=generation.user
+                    )
+
+                    before = wallet.balance
+
+                    wallet.balance = F("balance") + generation.credit_used
+                    wallet.used_credits = F("used_credits") - generation.credit_used
+                    wallet.save()
+
+                    wallet.refresh_from_db()
+                    after = wallet.balance
+
+                    CreditTransaction.objects.create(
+                        user=generation.user,
+                        amount=generation.credit_used,
+                        transaction_type="add",
+                        balance_before=before,
+                        balance_after=after,
+                        description=f"Refund for failed generation {generation.id}"
+                    )
+
+                    # ✅ mark refunded
+                    generation.is_refunded = True
+                    generation.save(update_fields=["is_refunded"])
+
+        except Exception as refund_error:
+            print("Refund failed:", refund_error)
+
         generation.retry_count += 1
-        generation.save()
+        generation.save(update_fields=["retry_count"])
 
         try:
-            # Retry only for network/API issues
             if isinstance(exc, requests.exceptions.RequestException):
                 raise self.retry(exc=exc)
 

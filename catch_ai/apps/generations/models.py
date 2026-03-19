@@ -18,9 +18,6 @@ def generate_job_id():
     )
 
 
-# ==========================================================
-# GENERATION MODEL
-# ==========================================================
 class Generation(models.Model):
 
     STATUS_CHOICES = [
@@ -34,7 +31,8 @@ class Generation(models.Model):
         max_length=20,
         unique=True,
         editable=False,
-        blank=True
+        blank=True,
+        db_index=True 
     )
 
     user = models.ForeignKey(
@@ -71,11 +69,7 @@ class Generation(models.Model):
     # ============================
     input_data = models.JSONField()
 
-    result_url = models.URLField(
-        max_length=500,
-        null=True,
-        blank=True
-    )
+    result_url = models.URLField(max_length=500, null=True, blank=True)
 
     result_type = models.CharField(
         max_length=20,
@@ -102,7 +96,10 @@ class Generation(models.Model):
     retry_count = models.IntegerField(default=0)
     max_retries = models.IntegerField(default=3)
 
-    credit_used = models.IntegerField(default=1)
+    credit_used = models.IntegerField(null=True, blank=True)
+
+    is_credits_deducted = models.BooleanField(default=False)
+    is_refunded = models.BooleanField(default=False)
 
     # ============================
     # SNAPSHOT FIELDS
@@ -110,33 +107,18 @@ class Generation(models.Model):
     model_name = models.CharField(max_length=100, null=True, blank=True)
     feature_type = models.CharField(max_length=50, null=True, blank=True)
 
-    model_provider = models.CharField(
-        max_length=50,
-        null=True,
-        blank=True
-    )
+    model_provider = models.CharField(max_length=50, null=True, blank=True)
 
     # ============================
-    # PAYLOAD TRACKING (NEW)
+    # PAYLOAD TRACKING
     # ============================
-    request_payload = models.JSONField(
-        null=True,
-        blank=True
-    )
-
-    response_payload = models.JSONField(
-        null=True,
-        blank=True
-    )
+    request_payload = models.JSONField(null=True, blank=True)
+    response_payload = models.JSONField(null=True, blank=True)
 
     # ============================
     # OPTIONAL UX FIELD
     # ============================
-    input_summary = models.CharField(
-        max_length=255,
-        null=True,
-        blank=True
-    )
+    input_summary = models.CharField(max_length=255, null=True, blank=True)
 
     # ============================
     # TIMESTAMPS
@@ -151,7 +133,7 @@ class Generation(models.Model):
             models.Index(fields=["user"]),
             models.Index(fields=["status"]),
             models.Index(fields=["job_id"]),
-            models.Index(fields=["user", "created_at"]),  # NEW
+            models.Index(fields=["user", "created_at"]),
         ]
 
     # ==========================================================
@@ -165,13 +147,13 @@ class Generation(models.Model):
             raise ValidationError("Only one of template or feature should be set")
 
     # ==========================================================
-    # OVERRIDE SAVE
+    # SAVE
     # ==========================================================
     def save(self, *args, **kwargs):
 
         # Generate unique job_id
         if not self.job_id:
-            while True:
+            for _ in range(5): 
                 new_job_id = generate_job_id()
                 if not Generation.objects.filter(job_id=new_job_id).exists():
                     self.job_id = new_job_id

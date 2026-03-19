@@ -6,9 +6,6 @@ from django.core.exceptions import ValidationError
 User = get_user_model()
 
 
-# ============================
-# USER CREDIT WALLET
-# ============================
 class UserCredits(models.Model):
 
     id = models.CharField(primary_key=True, max_length=30, editable=False)
@@ -19,28 +16,23 @@ class UserCredits(models.Model):
         related_name="credit_wallet"
     )
 
-    total_credits = models.PositiveIntegerField(default=0)
-    used_credits = models.PositiveIntegerField(default=0)
+    total_credits = models.PositiveIntegerField(default=0)   # lifetime purchased
+    used_credits = models.PositiveIntegerField(default=0)    # analytics only
+    balance = models.PositiveIntegerField(default=0)         # 🔥 MAIN FIELD
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    # SAFE PROPERTY (ONLY FOR DISPLAY)
     @property
     def remaining(self):
         """
-        Use ONLY for display (admin, serializer).
-        NEVER use inside business logic with F() expressions.
+        Safe display only (DO NOT use in business logic)
         """
-        if isinstance(self.used_credits, int):
-            return self.total_credits - self.used_credits
-        return None  # avoid crash if expression
+        return self.balance
 
     def clean(self):
-        # Only validate when actual values (not F expressions)
-        if isinstance(self.used_credits, int):
-            if self.used_credits > self.total_credits:
-                raise ValidationError("Used credits cannot exceed total credits")
+        if isinstance(self.balance, int) and self.balance < 0:
+            raise ValidationError("Balance cannot be negative")
 
     def save(self, *args, **kwargs):
         allow_used_update = kwargs.pop("allow_used_update", False)
@@ -48,7 +40,7 @@ class UserCredits(models.Model):
         if not self.id:
             self.id = f"crdt-{uuid.uuid4().hex[:8].upper()}"
 
-        # 🔒 Prevent manual modification
+        # 🔒 Prevent manual tampering of used_credits
         if self.pk and not allow_used_update:
             try:
                 old = UserCredits.objects.get(pk=self.pk)
@@ -60,12 +52,9 @@ class UserCredits(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.user} - {self.total_credits - self.used_credits} credits"
+        return f"{self.user} - Balance: {self.balance}"
+    
 
-
-# ============================
-# CREDIT TRANSACTIONS
-# ============================
 class CreditTransaction(models.Model):
 
     TRANSACTION_TYPE = (
@@ -98,6 +87,8 @@ class CreditTransaction(models.Model):
     amount = models.PositiveIntegerField()
     transaction_type = models.CharField(max_length=10, choices=TRANSACTION_TYPE)
 
+    # 🔥 NEW (important for audit/debug)
+    balance_before = models.PositiveIntegerField(null=True, blank=True)
     balance_after = models.PositiveIntegerField(null=True, blank=True)
 
     description = models.TextField(blank=True, null=True)

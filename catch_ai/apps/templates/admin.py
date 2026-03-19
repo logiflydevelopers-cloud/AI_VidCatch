@@ -194,7 +194,6 @@ class FeatureAdminForm(forms.ModelForm):
         default_model = cleaned_data.get("default_model")
         allowed_models = cleaned_data.get("allowed_models")
         feature_type = cleaned_data.get("feature_type")
-        flow_type = cleaned_data.get("flow_type")
         template = cleaned_data.get("template")
 
         if default_model:
@@ -203,12 +202,6 @@ class FeatureAdminForm(forms.ModelForm):
 
             if default_model.feature_type != feature_type:
                 raise ValidationError("Model feature_type mismatch")
-
-        if flow_type == "template" and not template:
-            raise ValidationError("Template required for template flow")
-
-        if flow_type == "ai" and template:
-            raise ValidationError("AI flow should not have template")
 
         return cleaned_data
 
@@ -223,14 +216,8 @@ class FeaturesAdmin(admin.ModelAdmin):
 
     list_display = (
         "id", "name", "feature_type",
-        "flow_type", "credit_cost",
         "is_premium", "is_active",
         "display_order", "created_at"
-    )
-
-    list_filter = (
-        "feature_type", "flow_type",
-        "is_active", "is_premium"
     )
 
     filter_horizontal = ("allowed_models",)

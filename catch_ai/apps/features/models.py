@@ -7,19 +7,11 @@ import uuid
 FEATURE_CHOICES = [
     ("text_to_video", "Text to Video"),
     ("image_to_video", "Image to Video"),
-    ("couple_wallpaper", "Couple Wallpaper"),
     ("background_remove", "Background Remove"),
     ("background_change", "Background Change"),
     ("image_upscale", "Image Upscale"),
     ("image_colorize", "Image Colorize")
 ]
-
-
-FLOW_TYPE_CHOICES = [
-    ("ai", "AI Generation"),
-    ("template", "Template Flow")
-]
-
 
 class Features(models.Model):
 
@@ -34,12 +26,7 @@ class Features(models.Model):
         choices=FEATURE_CHOICES
     )
 
-    # Flow type
-    flow_type = models.CharField(
-        max_length=20,
-        choices=FLOW_TYPE_CHOICES,
-        default="ai"
-    )
+    
 
     # Template mapping
     template = models.ForeignKey(
