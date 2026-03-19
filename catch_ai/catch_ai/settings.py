@@ -104,24 +104,24 @@ WSGI_APPLICATION = 'catch_ai.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": config("DB_NAME"),
-        "USER": config("DB_USER"),
-        "PASSWORD": config("DB_PASSWORD"),
-        "HOST": config("DB_HOST"),
-        "PORT": config("DB_PORT"),
-    }
-}
-
-
 # DATABASES = {
-#     "default": dj_database_url.config(
-#         default=os.environ.get("DATABASE_URL"),
-#         conn_max_age=600
-#     )
+#     "default": {
+#         "ENGINE": "django.db.backends.postgresql",
+#         "NAME": config("DB_NAME"),
+#         "USER": config("DB_USER"),
+#         "PASSWORD": config("DB_PASSWORD"),
+#         "HOST": config("DB_HOST"),
+#         "PORT": config("DB_PORT"),
+#     }
 # }
+
+
+DATABASES = {
+    "default": dj_database_url.config(
+        default=os.environ.get("DATABASE_URL"),
+        conn_max_age=600
+    )
+}
 
 
 AUTH_USER_MODEL = "users.User"
@@ -190,6 +190,7 @@ FIREBASE_CREDENTIALS = os.path.join(BASE_DIR, "firebase-service-account.json")
 FIREBASE_STORAGE_BUCKET = "ai-vidcatch.firebasestorage.app"
 
 FASTAPI_GENERATE_URL = "https://iv-models.onrender.com/ai/generate"
+FASTAPI_MODEL_REGISTRY_URL = "https://iv-models.onrender.com/ai/models/registry"
 
 CELERY_BROKER_URL = os.getenv("REDIS_URL")
 CELERY_RESULT_BACKEND = os.getenv("REDIS_URL")

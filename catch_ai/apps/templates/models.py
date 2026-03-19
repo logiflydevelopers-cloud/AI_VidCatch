@@ -33,28 +33,37 @@ class AIModel(models.Model):
 
     id = models.CharField(primary_key=True, max_length=30, editable=False)
 
-    # key used in FastAPI registry
+    # key from FastAPI registry
     model_name = models.CharField(max_length=100, unique=True)
 
     name = models.CharField(max_length=100)
 
-    feature_type = models.CharField(
-        max_length=50,
-        choices=FEATURE_CHOICES
-    )
+    feature_type = models.CharField(max_length=50)
 
     provider = models.CharField(max_length=50, blank=True, null=True)
 
     # cost per generation (credits)
     credit_cost = models.PositiveIntegerField(default=1)
 
-    # default model for feature
-    is_default = models.BooleanField(default=False)
+    # REMOVE THIS (handled in Feature)
+    # is_default = models.BooleanField(default=False)
 
     is_active = models.BooleanField(default=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # ============================
+    # META (performance + safety)
+    # ============================
+    class Meta:
+        indexes = [
+            models.Index(fields=["feature_type"]),
+            models.Index(fields=["model_name"]),
+        ]
+
+    # ============================
+    # SAVE
+    # ============================
     def save(self, *args, **kwargs):
         if not self.id:
             self.id = f"mdl_{uuid.uuid4().hex[:8].upper()}"

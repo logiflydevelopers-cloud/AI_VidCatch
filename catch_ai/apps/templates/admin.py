@@ -60,12 +60,23 @@ class TemplateAdminForm(forms.ModelForm):
 class AIModelAdmin(admin.ModelAdmin):
 
     list_display = (
-        "id", "name", "feature_type", "provider",
-        "credit_cost", "is_default", "is_active"
+        "id",
+        "name",
+        "feature_type",
+        "provider",
+        "credit_cost",
+        "is_active",
     )
 
     list_filter = ("feature_type", "is_active")
+
     search_fields = ("name", "model_name")
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 # ==========================================================
@@ -194,14 +205,33 @@ class FeatureAdminForm(forms.ModelForm):
         default_model = cleaned_data.get("default_model")
         allowed_models = cleaned_data.get("allowed_models")
         feature_type = cleaned_data.get("feature_type")
-        template = cleaned_data.get("template")
 
+        # -------------------------
+        # Validate allowed models
+        # -------------------------
+        if allowed_models:
+            if len(allowed_models) > 4:
+                raise ValidationError("Maximum 4 models allowed per feature")
+
+            for model in allowed_models:
+                if model.feature_type != feature_type:
+                    raise ValidationError(
+                        f"{model.name} does not belong to {feature_type}"
+                    )
+
+        # -------------------------
+        # Validate default model
+        # -------------------------
         if default_model:
-            if allowed_models and default_model not in allowed_models:
-                raise ValidationError("Default model must be in allowed_models")
+            if default_model not in allowed_models:
+                raise ValidationError(
+                    "Default model must be in allowed_models"
+                )
 
             if default_model.feature_type != feature_type:
-                raise ValidationError("Model feature_type mismatch")
+                raise ValidationError(
+                    "Default model feature_type mismatch"
+                )
 
         return cleaned_data
 
@@ -223,13 +253,36 @@ class FeaturesAdmin(admin.ModelAdmin):
     filter_horizontal = ("allowed_models",)
     ordering = ("display_order",)
 
-    readonly_fields = ("id", "created_at", "updated_at")
+    # Lock critical fields
+    def get_readonly_fields(self, request, obj=None):
+        if obj:
+            return (
+                "id",
+                "feature_type",   # cannot change
+                "created_at",
+                "updated_at",
+            )
+        return ("id", "created_at", "updated_at")
 
+    # Disable add
+    def has_add_permission(self, request):
+        return False
+
+    # Disable delete
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    # -----------------------------
+    # FILTER DEFAULT MODEL
+    # -----------------------------
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "default_model":
             kwargs["queryset"] = AIModel.objects.filter(is_active=True)
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
+    # -----------------------------
+    # FILTER ALLOWED MODELS
+    # -----------------------------
     def formfield_for_manytomany(self, db_field, request, **kwargs):
         if db_field.name == "allowed_models":
             kwargs["queryset"] = AIModel.objects.filter(is_active=True)
