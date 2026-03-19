@@ -66,6 +66,9 @@ class Generation(models.Model):
         blank=True
     )
 
+    # ============================
+    # INPUT / OUTPUT
+    # ============================
     input_data = models.JSONField()
 
     result_url = models.URLField(
@@ -83,6 +86,9 @@ class Generation(models.Model):
 
     output_metadata = models.JSONField(null=True, blank=True)
 
+    # ============================
+    # STATUS TRACKING
+    # ============================
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
@@ -94,13 +100,47 @@ class Generation(models.Model):
     task_id = models.CharField(max_length=255, null=True, blank=True)
 
     retry_count = models.IntegerField(default=0)
+    max_retries = models.IntegerField(default=3)
 
     credit_used = models.IntegerField(default=1)
 
-    # snapshot fields
+    # ============================
+    # SNAPSHOT FIELDS
+    # ============================
     model_name = models.CharField(max_length=100, null=True, blank=True)
     feature_type = models.CharField(max_length=50, null=True, blank=True)
 
+    model_provider = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True
+    )
+
+    # ============================
+    # PAYLOAD TRACKING (NEW)
+    # ============================
+    request_payload = models.JSONField(
+        null=True,
+        blank=True
+    )
+
+    response_payload = models.JSONField(
+        null=True,
+        blank=True
+    )
+
+    # ============================
+    # OPTIONAL UX FIELD
+    # ============================
+    input_summary = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True
+    )
+
+    # ============================
+    # TIMESTAMPS
+    # ============================
     created_at = models.DateTimeField(auto_now_add=True)
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
@@ -111,9 +151,12 @@ class Generation(models.Model):
             models.Index(fields=["user"]),
             models.Index(fields=["status"]),
             models.Index(fields=["job_id"]),
+            models.Index(fields=["user", "created_at"]),  # NEW
         ]
 
-
+    # ==========================================================
+    # VALIDATION
+    # ==========================================================
     def clean(self):
         if not self.template and not self.feature:
             raise ValidationError("Either template or feature must be set")

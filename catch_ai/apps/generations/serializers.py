@@ -6,8 +6,11 @@ from apps.features.models import Features
 
 class GenerateSerializer(serializers.Serializer):
 
-    template_id = serializers.CharField(required=False)
-    feature_id = serializers.CharField(required=False)
+    template_id = serializers.IntegerField(required=False)
+    feature_id = serializers.IntegerField(required=False)
+
+    # future-ready (optional)
+    model_id = serializers.IntegerField(required=False)
 
     input_data = serializers.JSONField()
 
@@ -18,7 +21,7 @@ class GenerateSerializer(serializers.Serializer):
         input_data = data.get("input_data", {})
 
         # =====================================
-        # VALIDATE SOURCE (template OR feature)
+        # VALIDATE SOURCE
         # =====================================
         if not template_id and not feature_id:
             raise serializers.ValidationError(
@@ -29,6 +32,12 @@ class GenerateSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 "Only one of template_id or feature_id is allowed"
             )
+
+        # =====================================
+        # VALIDATE INPUT DATA TYPE
+        # =====================================
+        if not isinstance(input_data, dict):
+            raise serializers.ValidationError("input_data must be an object")
 
         # =====================================
         # TEMPLATE FLOW
@@ -53,9 +62,13 @@ class GenerateSerializer(serializers.Serializer):
             schema = feature.input_schema or {}
 
         # =====================================
-        # VALIDATE INPUTS AGAINST SCHEMA
+        # VALIDATE AGAINST SCHEMA
         # =====================================
         fields = schema.get("fields", [])
+
+        field_names = [f.get("name") for f in fields]
+
+        clean_input = {}
 
         for field in fields:
             name = field.get("name")
@@ -63,6 +76,18 @@ class GenerateSerializer(serializers.Serializer):
 
             if required and name not in input_data:
                 raise serializers.ValidationError(f"{name} is required")
+
+            if name in input_data:
+                clean_input[name] = input_data[name]
+
+        # If no schema → allow all inputs (important flexibility)
+        if not fields:
+            clean_input = input_data
+
+        # =====================================
+        # SAVE CLEANED DATA
+        # =====================================
+        data["input_data"] = clean_input
 
         return data
 
@@ -72,7 +97,6 @@ class GenerationSerializer(serializers.ModelSerializer):
     template_name = serializers.SerializerMethodField()
     feature_name = serializers.SerializerMethodField()
 
-    job_id = serializers.CharField(read_only=True)
     processing_time = serializers.SerializerMethodField()
 
     class Meta:
@@ -80,17 +104,36 @@ class GenerationSerializer(serializers.ModelSerializer):
 
         fields = [
             "job_id",
+
+            # source
+            "source_type",
             "template",
             "template_name",
             "feature",
             "feature_name",
+
+            # status
             "status",
+            "error_message",
+
+            # result
             "result_url",
             "result_type",
-            "error_message",
+
+            # metadata
             "model_name",
             "feature_type",
+            "model_provider",
+            "credit_used",
+
+            # input
             "input_data",
+
+            # optional debug
+            "request_payload",
+            "response_payload",
+
+            # timestamps
             "created_at",
             "completed_at",
             "processing_time",

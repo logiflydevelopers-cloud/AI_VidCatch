@@ -14,6 +14,9 @@ from .tasks import run_generation
 # ==========================================================
 # CREATE GENERATION (TEMPLATE + FEATURE)
 # ==========================================================
+# ==========================================================
+# CREATE GENERATION (TEMPLATE + FEATURE)
+# ==========================================================
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def create_generation(request):
@@ -34,6 +37,8 @@ def create_generation(request):
         model = None
         feature_type = None
         credit_cost = 1
+        model_provider = None
+        settings = None
 
         # ============================
         # TEMPLATE FLOW
@@ -54,6 +59,11 @@ def create_generation(request):
             model = template.default_model
             feature_type = model.feature_type
             credit_cost = model.credit_cost or template.credit_cost
+            model_provider = getattr(model, "provider", None)
+
+            # optional template settings
+            if hasattr(template, "settings") and template.settings:
+                settings = template.settings
 
         # ============================
         # FEATURE FLOW
@@ -74,9 +84,26 @@ def create_generation(request):
             model = feature.default_model
             feature_type = feature.feature_type
             credit_cost = model.credit_cost or feature.credit_cost
+            model_provider = getattr(model, "provider", None)
+
+            # optional feature settings
+            if hasattr(feature, "default_settings") and feature.default_settings:
+                settings = feature.default_settings
 
         else:
             return Response({"error": "Invalid request"}, status=400)
+
+        # ============================
+        # BUILD STANDARD PAYLOAD
+        # ============================
+        payload = {
+            "feature": feature_type,
+            "model": model.model_name,
+            "inputs": input_data
+        }
+
+        if settings:
+            payload["settings"] = settings
 
         # ============================
         # CREATE GENERATION
@@ -95,13 +122,22 @@ def create_generation(request):
                 # snapshot
                 model_name=model.model_name,
                 feature_type=feature_type,
-                credit_used=credit_cost
+                model_provider=model_provider,
+                credit_used=credit_cost,
+
+                # NEW 🔥
+                request_payload=payload,
+
+                # optional UX
+                input_summary=(
+                    template.name if template else feature.name
+                )
             )
 
             # ============================
             # SEND TO CELERY
             # ============================
-            task = run_generation.delay(generation.id)
+            task = run_generation.delay(generation.id, payload)
 
             generation.task_id = task.id
             generation.save()
