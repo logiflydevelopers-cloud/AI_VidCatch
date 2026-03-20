@@ -100,6 +100,8 @@ def get_feature_settings(feature):
         settings[s.key] = s.options
 
     return settings
+
+
 # ==========================================================
 # LIST FEATURES
 # ==========================================================

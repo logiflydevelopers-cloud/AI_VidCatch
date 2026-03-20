@@ -83,7 +83,7 @@ def create_generation(request):
         feature = data.get("feature_obj")
         input_data = data["input_data"]
         user_settings = data.get("settings")
-        quality = request.data.get("quality")  # optional
+        quality = data.get("quality")  # optional
 
         model = None
         feature_key = None

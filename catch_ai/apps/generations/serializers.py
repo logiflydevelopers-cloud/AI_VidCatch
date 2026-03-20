@@ -17,6 +17,11 @@ class GenerateSerializer(serializers.Serializer):
 
     settings = serializers.JSONField(required=False)
 
+    quality = serializers.ChoiceField(
+        choices=["fast", "standard", "advanced"],
+        required=False
+    )
+
     def validate(self, data):
 
         template_id = data.get("template_id")
