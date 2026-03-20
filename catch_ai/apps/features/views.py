@@ -98,8 +98,7 @@ def list_features(request):
                 "name": f.default_model.name
             } if f.default_model and f.default_model.is_active else None,
 
-            "input_schema": f.input_schema,
-            "default_settings": f.default_settings
+            "input_schema": f.input_schema
         })
 
     return Response(data)
@@ -127,6 +126,5 @@ def get_feature(request, feature_id):
             "name": feature.default_model.name
         } if feature.default_model and feature.default_model.is_active else None,
 
-        "input_schema": feature.input_schema,
-        "default_settings": feature.default_settings
+        "input_schema": feature.input_schema
     })
