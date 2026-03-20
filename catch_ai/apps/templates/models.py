@@ -40,6 +40,14 @@ class AIModel(models.Model):
 
     feature_type = models.CharField(max_length=50)
 
+    feature = models.ForeignKey(
+        "features.Features",
+        on_delete=models.CASCADE,
+        related_name="models",
+        null=True,
+        blank=True
+    )
+
     provider = models.CharField(max_length=50, blank=True, null=True)
 
     # cost per generation (credits)

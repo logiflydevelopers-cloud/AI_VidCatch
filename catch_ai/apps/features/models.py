@@ -3,7 +3,6 @@ from django.core.exceptions import ValidationError
 from apps.templates.models import AIModel
 import uuid
 
-
 class Features(models.Model):
 
     id = models.CharField(primary_key=True, max_length=20, editable=False)
@@ -12,7 +11,6 @@ class Features(models.Model):
 
     credit_cost = models.PositiveIntegerField(default=0)
 
-    # 🔥 NO CHOICES (dynamic + must match FastAPI registry)
     feature_type = models.CharField(
         max_length=50,
         unique=True
@@ -22,13 +20,13 @@ class Features(models.Model):
     # MODELS CONFIG
     # ============================
     allowed_models = models.ManyToManyField(
-        AIModel,
+        "templates.AIModel",
         related_name="features",
         blank=True
     )
 
     default_model = models.ForeignKey(
-        AIModel,
+        "templates.AIModel",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -41,6 +39,8 @@ class Features(models.Model):
     input_schema = models.JSONField(blank=True, null=True)
 
     default_settings = models.JSONField(blank=True, null=True)
+
+    model_mapping = models.JSONField(blank=True, null=True)
 
     # ============================
     # UI / CONTROL
@@ -56,47 +56,11 @@ class Features(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     # ============================
-    # VALIDATION
+    # VALIDATION (ONLY FK SAFE)
     # ============================
     def clean(self):
-
-        # ----------------------------
-        # 1. allowed_models validation
-        # ----------------------------
-        if self.allowed_models.exists():
-            for model in self.allowed_models.all():
-                if model.feature_type != self.feature_type:
-                    raise ValidationError(
-                        f"{model.name} does not belong to {self.feature_type}"
-                    )
-
-        # ----------------------------
-        # 2. default_model validation
-        # ----------------------------
-        if self.default_model:
-
-            if self.default_model.feature_type != self.feature_type:
-                raise ValidationError(
-                    "Default model feature_type mismatch"
-                )
-
-            if self.pk and self.default_model not in self.allowed_models.all():
-                raise ValidationError(
-                    "Default model must be in allowed_models"
-                )
-
-        # ----------------------------
-        # 3. optional: enforce 1–4 models
-        # ----------------------------
-        if self.pk:
-            model_count = self.allowed_models.count()
-
-            if model_count == 0:
-                raise ValidationError("At least 1 model is required")
-
-            if model_count > 4:
-                raise ValidationError("Maximum 4 models allowed per feature")
-
+        super().clean()
+        
     # ============================
     # SAVE
     # ============================

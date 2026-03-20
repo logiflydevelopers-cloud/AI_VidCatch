@@ -4,6 +4,44 @@ from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 
 from .models import Features
+from apps.templates.models import AIModel
+
+
+SPECIAL_FEATURES = ["text_to_video", "image_to_video"]
+
+
+# ==========================================================
+# HELPER: GET MODELS
+# ==========================================================
+def get_feature_models(feature):
+
+    # Special features (fast / standard / advanced)
+    if feature.feature_type in SPECIAL_FEATURES and feature.model_mapping:
+
+        data = {}
+
+        for key, model_id in feature.model_mapping.items():
+            try:
+                model = AIModel.objects.get(id=model_id, is_active=True)
+
+                data[key] = {
+                    "id": model.id,
+                    "name": model.name
+                }
+
+            except AIModel.DoesNotExist:
+                data[key] = None
+
+        return data
+
+    # Normal features
+    return [
+        {
+            "id": m.id,
+            "name": m.name
+        }
+        for m in feature.allowed_models.filter(is_active=True)
+    ]
 
 
 # ==========================================================
@@ -26,9 +64,17 @@ def list_features(request):
             "feature_type": f.feature_type,
             "credit_cost": f.credit_cost,
             "is_premium": f.is_premium,
+            "models": get_feature_models(f),
+
+            "default_model": {
+                "id": f.default_model.id,
+                "name": f.default_model.name
+            } if f.default_model and f.default_model.is_active else None,
+
             "input_schema": f.input_schema,
             "default_settings": f.default_settings,
-            "template_id": f.template.id if f.template else None,
+
+            "template_id": f.template.id if hasattr(f, "template") and f.template else None,
         })
 
     return Response(data)
@@ -41,14 +87,23 @@ def list_features(request):
 @permission_classes([IsAuthenticated])
 def get_feature(request, feature_id):
 
-    feature = get_object_or_404(Features, id=feature_id)
+    feature = get_object_or_404(Features, id=feature_id, is_active=True)
 
     return Response({
         "id": feature.id,
         "name": feature.name,
         "feature_type": feature.feature_type,
         "credit_cost": feature.credit_cost,
-        "template_id": feature.template.id if feature.template else None,
+        "is_premium": feature.is_premium,
+        "models": get_feature_models(feature),
+
+        "default_model": {
+            "id": feature.default_model.id,
+            "name": feature.default_model.name
+        } if feature.default_model and feature.default_model.is_active else None,
+
         "input_schema": feature.input_schema,
         "default_settings": feature.default_settings,
+
+        "template_id": feature.template.id if hasattr(feature, "template") and feature.template else None,
     })

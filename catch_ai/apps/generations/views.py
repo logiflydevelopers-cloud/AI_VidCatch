@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 
-from apps.templates.models import Template
+from apps.templates.models import Template, AIModel
 from apps.features.models import Features
 from .models import Generation
 from .serializers import GenerateSerializer, GenerationSerializer
@@ -54,13 +54,65 @@ def create_generation(request):
             model_provider = getattr(model, "provider", None)
 
         elif feature:
-            if not feature.default_model:
-                return Response(
-                    {"error": "No model configured for this feature"},
-                    status=400
-                )
 
-            model = feature.default_model
+            quality = request.data.get("quality")  # fast / standard / advanced
+
+            # ============================
+            # SPECIAL FEATURE (MAPPED)
+            # ============================
+            if feature.model_mapping:
+
+                # MUST require quality
+                if not quality:
+                    return Response(
+                        {"error": "quality is required (fast/standard/advanced)"},
+                        status=400
+                    )
+
+                if quality not in feature.model_mapping:
+                    return Response(
+                        {"error": f"Invalid quality: {quality}"},
+                        status=400
+                    )
+
+                model_id = feature.model_mapping.get(quality)
+
+                if not model_id:
+                    return Response(
+                        {"error": f"No model configured for {quality}"},
+                        status=400
+                    )
+
+                try:
+                    model = AIModel.objects.get(id=model_id, is_active=True)
+                except AIModel.DoesNotExist:
+                    return Response(
+                        {"error": "Mapped model not found or inactive"},
+                        status=400
+                    )
+
+                # EXTRA SAFETY (VERY IMPORTANT)
+                if model not in feature.allowed_models.all():
+                    return Response(
+                        {"error": "Model is not allowed for this feature"},
+                        status=400
+                    )
+
+            # ============================
+            # NORMAL FEATURE
+            # ============================
+            else:
+                if not feature.default_model:
+                    return Response(
+                        {"error": "No model configured for this feature"},
+                        status=400
+                    )
+
+                model = feature.default_model
+
+            # ============================
+            # COMMON ASSIGNMENTS
+            # ============================
             feature_key = feature.feature_type
             credit_cost = model.credit_cost or feature.credit_cost
             model_provider = getattr(model, "provider", None)
