@@ -70,7 +70,36 @@ def get_normalized_credits(feature):
 
     return credits
 
+def get_feature_settings(feature):
 
+    # ============================
+    # MULTI MODE
+    # ============================
+    if feature.is_multi_mode:
+        settings = {
+            "fast": {},
+            "standard": {},
+            "advanced": {}
+        }
+
+        qs = feature.settings.all().order_by("display_order")
+
+        for s in qs:
+            settings[s.mode][s.key] = s.options
+
+        return settings
+
+    # ============================
+    # NORMAL FEATURE
+    # ============================
+    settings = {}
+
+    qs = feature.settings.all().order_by("display_order")
+
+    for s in qs:
+        settings[s.key] = s.options
+
+    return settings
 # ==========================================================
 # LIST FEATURES
 # ==========================================================
@@ -98,7 +127,8 @@ def list_features(request):
                 "name": f.default_model.name
             } if f.default_model and f.default_model.is_active else None,
 
-            "input_schema": f.input_schema
+            "input_schema": f.input_schema,
+            "settings": get_feature_settings(f),
         })
 
     return Response(data)
@@ -126,5 +156,6 @@ def get_feature(request, feature_id):
             "name": feature.default_model.name
         } if feature.default_model and feature.default_model.is_active else None,
 
-        "input_schema": feature.input_schema
+        "input_schema": feature.input_schema,
+        "settings": get_feature_settings(feature),
     })
