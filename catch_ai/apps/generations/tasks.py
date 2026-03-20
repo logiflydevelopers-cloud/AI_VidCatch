@@ -38,27 +38,12 @@ def run_generation(self, generation_id, payload):
         # ============================
         if generation.feature:
 
-            # get mode from payload
-            mode = payload.get("quality")  # fast / standard / advanced
             options = payload.get("settings", {})
-            print("+++++++++++++++++++++++++++++++++++++",mode,"++++++++++++++++++++++++++++++++++++++++")
 
-            # allowed_modes = ["fast", "standard", "advanced"]
+            # DO NOT use quality in worker
+            # cost already calculated in view
 
-            # if generation.feature.is_multi_mode:
-            #     if mode not in allowed_modes:
-            #         raise Exception(f"Invalid quality. Allowed: {allowed_modes}")
-
-            # fallback to default model mapping if needed
-            if not mode and generation.feature.is_multi_mode:
-                mode = "standard"
-
-            # calculate dynamic cost
-            cost = calculate_feature_cost(
-                feature=generation.feature,
-                mode=mode,
-                options=options  # includes generate_audio etc.
-            )
+            cost = generation.credit_used
 
         elif generation.template:
             cost = generation.template.credit_cost
