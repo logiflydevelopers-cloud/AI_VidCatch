@@ -41,12 +41,13 @@ def run_generation(self, generation_id, payload):
             # get mode from payload
             mode = payload.get("quality")  # fast / standard / advanced
             options = payload.get("settings", {})
+            print("+++++++++++++++++++++++++++++++++++++",mode,"++++++++++++++++++++++++++++++++++++++++")
 
-            allowed_modes = ["fast", "standard", "advanced"]
+            # allowed_modes = ["fast", "standard", "advanced"]
 
-            if generation.feature.is_multi_mode:
-                if mode not in allowed_modes:
-                    raise Exception(f"Invalid quality. Allowed: {allowed_modes}")
+            # if generation.feature.is_multi_mode:
+            #     if mode not in allowed_modes:
+            #         raise Exception(f"Invalid quality. Allowed: {allowed_modes}")
 
             # fallback to default model mapping if needed
             if not mode and generation.feature.is_multi_mode:
