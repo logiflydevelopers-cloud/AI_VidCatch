@@ -43,6 +43,33 @@ def get_feature_models(feature):
         for m in feature.allowed_models.filter(is_active=True)
     ]
 
+# ==========================================================
+# HELPER: MERGE BASE + ADDON CREDITS 
+# ==========================================================
+def get_normalized_credits(feature):
+
+    # ============================
+    # BASE CREDITS (FROM FIELDS)
+    # ============================
+    if feature.is_multi_mode:
+        credits = {
+            "fast": feature.fast_credit_cost,
+            "standard": feature.standard_credit_cost,
+            "advanced": feature.advanced_credit_cost
+        }
+    else:
+        credits = {
+            "default": feature.credit_cost
+        }
+
+    # ============================
+    # ADDONS (FROM JSON)
+    # ============================
+    if feature.credits_config:
+        credits.update(feature.credits_config)
+
+    return credits
+
 
 # ==========================================================
 # LIST FEATURES
@@ -62,7 +89,7 @@ def list_features(request):
             "id": f.id,
             "name": f.name,
             "feature_type": f.feature_type,
-            "credit_cost": f.credit_cost,
+            "credits": get_normalized_credits(f),
             "is_premium": f.is_premium,
             "models": get_feature_models(f),
 
@@ -72,9 +99,7 @@ def list_features(request):
             } if f.default_model and f.default_model.is_active else None,
 
             "input_schema": f.input_schema,
-            "default_settings": f.default_settings,
-
-            "template_id": f.template.id if hasattr(f, "template") and f.template else None,
+            "default_settings": f.default_settings
         })
 
     return Response(data)
@@ -93,7 +118,7 @@ def get_feature(request, feature_id):
         "id": feature.id,
         "name": feature.name,
         "feature_type": feature.feature_type,
-        "credit_cost": feature.credit_cost,
+        "credits": get_normalized_credits(feature),
         "is_premium": feature.is_premium,
         "models": get_feature_models(feature),
 
@@ -103,7 +128,5 @@ def get_feature(request, feature_id):
         } if feature.default_model and feature.default_model.is_active else None,
 
         "input_schema": feature.input_schema,
-        "default_settings": feature.default_settings,
-
-        "template_id": feature.template.id if hasattr(feature, "template") and feature.template else None,
+        "default_settings": feature.default_settings
     })

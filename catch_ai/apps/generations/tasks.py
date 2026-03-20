@@ -11,6 +11,7 @@ from apps.features.models import Features
 from .models import Generation
 from apps.services.firebase_storage import upload_generated_file
 from apps.credits.models import UserCredits, CreditTransaction
+from apps.features.utils import calculate_feature_cost
 
 
 FASTAPI_GENERATE_URL = settings.FASTAPI_GENERATE_URL
@@ -36,12 +37,27 @@ def run_generation(self, generation_id, payload):
         # COST + MODEL
         # ============================
         if generation.feature:
-            model = generation.feature.default_model
 
-            if not model:
-                raise Exception("No default model set for this feature")
+            # get mode from payload
+            mode = payload.get("quality")  # fast / standard / advanced
+            options = payload.get("settings", {})
 
-            cost = generation.feature.credit_cost
+            allowed_modes = ["fast", "standard", "advanced"]
+
+            if generation.feature.is_multi_mode:
+                if mode not in allowed_modes:
+                    raise Exception(f"Invalid quality. Allowed: {allowed_modes}")
+
+            # fallback to default model mapping if needed
+            if not mode and generation.feature.is_multi_mode:
+                mode = "standard"
+
+            # calculate dynamic cost
+            cost = calculate_feature_cost(
+                feature=generation.feature,
+                mode=mode,
+                options=options  # includes generate_audio etc.
+            )
 
         elif generation.template:
             cost = generation.template.credit_cost

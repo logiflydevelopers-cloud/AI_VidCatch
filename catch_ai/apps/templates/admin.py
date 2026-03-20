@@ -5,7 +5,7 @@ from django.utils.html import format_html
 from django.db.models import F
 
 from .models import Template, AIModel
-from apps.features.models import Features
+from apps.features.models import Features, FeatureSetting
 from apps.services.firebase_storage import upload_file
 
 from apps.credits.models import UserCredits, CreditTransaction
@@ -185,10 +185,9 @@ class TemplateAdmin(admin.ModelAdmin):
 
         obj.save()
 
-
 # ==========================================================
 # FEATURE ADMIN FORM
-# =========================================================
+# ==========================================================
 class FeatureAdminForm(forms.ModelForm):
 
     fast_model = forms.ModelChoiceField(
@@ -212,18 +211,16 @@ class FeatureAdminForm(forms.ModelForm):
         fields = "__all__"
         widgets = {
             "input_schema": JSONEditorWidget,
-            "default_settings": JSONEditorWidget,
+            "credits_config": JSONEditorWidget,
+            
         }
 
-    # -----------------------------
-    # INIT (set dropdown + initial values)
-    # -----------------------------
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        SPECIAL_FEATURES = ["text_to_video", "image_to_video"]
-
-        # 🔥 KEY FIX (handles POST + initial load)
+        # -----------------------------
+        # Allowed models queryset
+        # -----------------------------
         if self.data.get("allowed_models"):
             qs = AIModel.objects.filter(
                 id__in=self.data.getlist("allowed_models")
@@ -237,37 +234,46 @@ class FeatureAdminForm(forms.ModelForm):
         self.fields["standard_model"].queryset = qs
         self.fields["advanced_model"].queryset = qs
 
+        # -----------------------------
         # Load existing mapping
-        if self.instance and self.instance.model_mapping:
-            mapping = self.instance.model_mapping
+        # -----------------------------
+        mapping = getattr(self.instance, "model_mapping", None)
 
-            self.fields["fast_model"].initial = mapping.get("fast")
-            self.fields["standard_model"].initial = mapping.get("standard")
-            self.fields["advanced_model"].initial = mapping.get("advanced")
+        if mapping:
+            try:
+                self.fields["fast_model"].initial = qs.filter(id=mapping.get("fast")).first()
+                self.fields["standard_model"].initial = qs.filter(id=mapping.get("standard")).first()
+                self.fields["advanced_model"].initial = qs.filter(id=mapping.get("advanced")).first()
+            except Exception:
+                pass
 
-        # Hide for non-special features
-        if self.instance and self.instance.feature_type not in SPECIAL_FEATURES:
+        # -----------------------------
+        # Multi-mode detection (POST SAFE)
+        # -----------------------------
+        is_multi_mode = (
+            self.data.get("is_multi_mode") in ["on", "true", True]
+            or (self.instance and self.instance.is_multi_mode)
+        )
+
+        if not is_multi_mode:
             self.fields.pop("fast_model", None)
             self.fields.pop("standard_model", None)
             self.fields.pop("advanced_model", None)
 
-    # -----------------------------
-    # CLEAN
-    # -----------------------------
     def clean(self):
         cleaned_data = super().clean()
 
+        allowed_models = cleaned_data.get("allowed_models") or []
         default_model = cleaned_data.get("default_model")
-        allowed_models = cleaned_data.get("allowed_models")
 
         # -----------------------------
         # Basic validation
         # -----------------------------
-        if not allowed_models or allowed_models.count() == 0:
+        if not allowed_models:
             self.add_error("allowed_models", "At least 1 model is required")
-            return cleaned_data  # stop further errors
+            return cleaned_data
 
-        if allowed_models.count() > 4:
+        if len(allowed_models) > 4:
             self.add_error("allowed_models", "Maximum 4 models allowed")
 
         # -----------------------------
@@ -279,14 +285,13 @@ class FeatureAdminForm(forms.ModelForm):
                 "Default model must be one of the allowed models"
             )
 
-        # Auto-set default if missing
-        if not default_model:
-            cleaned_data["default_model"] = allowed_models.first()
+        if not default_model and allowed_models:
+            cleaned_data["default_model"] = allowed_models[0]
 
         # -----------------------------
-        # SPECIAL FEATURE MAPPING
+        # MULTI MODE
         # -----------------------------
-        if cleaned_data.get("feature_type") in ["text_to_video", "image_to_video"]:
+        if cleaned_data.get("is_multi_mode"):
 
             fast = cleaned_data.get("fast_model")
             standard = cleaned_data.get("standard_model")
@@ -301,13 +306,10 @@ class FeatureAdminForm(forms.ModelForm):
             if not advanced:
                 self.add_error("advanced_model", "Advanced model is required")
 
-            # Stop if any missing
             if not all([fast, standard, advanced]):
                 return cleaned_data
 
-            # -----------------------------
-            # Ensure models are in allowed_models
-            # -----------------------------
+            # Ensure models belong to allowed_models
             for field_name, model in {
                 "fast_model": fast,
                 "standard_model": standard,
@@ -319,16 +321,89 @@ class FeatureAdminForm(forms.ModelForm):
                         "Selected model must be in allowed_models"
                     )
 
-            # -----------------------------
-            # Save mapping
-            # -----------------------------
+            # ==============================
+            # CREDITS CONFIG VALIDATION 
+            # ==============================
+            credits_config = cleaned_data.get("credits_config")
+
+            if credits_config:
+
+                if not isinstance(credits_config, dict):
+                    self.add_error("credits_config", "Must be a valid JSON object")
+                    return cleaned_data
+
+                # --------------------------
+                # Validate base credits
+                # --------------------------
+                for key in ["fast", "standard", "advanced"]:
+                    if key in credits_config:
+                        if not isinstance(credits_config[key], int) or credits_config[key] < 0:
+                            self.add_error(
+                                "credits_config",
+                                f"{key} credit must be a positive integer"
+                            )
+
+                # --------------------------
+                # Validate AUDIO (addon)
+                # --------------------------
+                audio = credits_config.get("audio")
+
+                if audio:
+                    if not isinstance(audio, dict):
+                        self.add_error("credits_config", "audio must be an object")
+
+                    else:
+                        for mode, value in audio.items():
+                            if mode not in ["fast", "standard", "advanced"]:
+                                self.add_error(
+                                    "credits_config",
+                                    f"Invalid audio mode: {mode}"
+                                )
+
+                            if not isinstance(value, int) or value < 0:
+                                self.add_error(
+                                    "credits_config",
+                                    f"Audio credit for {mode} must be positive integer"
+                                )
+
+            # SAVE mapping
             cleaned_data["model_mapping"] = {
                 "fast": str(fast.id),
                 "standard": str(standard.id),
                 "advanced": str(advanced.id),
             }
 
+        else:
+            # clear mapping if not multi-mode
+            cleaned_data["model_mapping"] = None
+
         return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+
+        instance.model_mapping = self.cleaned_data.get("model_mapping")
+
+        if commit:
+            instance.save()
+            self.save_m2m()
+
+        return instance
+       
+class FeatureSettingInline(admin.TabularInline):
+    model = FeatureSetting
+    extra = 1
+    ordering = ("mode", "display_order")
+
+    fields = (
+        "mode",
+        "key",
+        "type",
+        "options",
+        "default_value",
+        "is_required",
+        "display_order",
+    )
 
 
 # ==========================================================
@@ -338,17 +413,18 @@ class FeatureAdminForm(forms.ModelForm):
 class FeaturesAdmin(admin.ModelAdmin):
 
     form = FeatureAdminForm
+    inlines = [FeatureSettingInline]
 
     def get_fields(self, request, obj=None):
         fields = list(super().get_fields(request, obj))
 
-        SPECIAL_FEATURES = ["text_to_video", "image_to_video"]
-
+        # remove if already present
         for f in ["fast_model", "standard_model", "advanced_model"]:
             if f in fields:
                 fields.remove(f)
 
-        if obj and obj.feature_type in SPECIAL_FEATURES:
+        # show only if multi-mode
+        if obj and obj.is_multi_mode:
             fields += ["fast_model", "standard_model", "advanced_model"]
 
         if "model_mapping" in fields:
@@ -357,9 +433,17 @@ class FeaturesAdmin(admin.ModelAdmin):
         return fields
 
     list_display = (
-        "id", "name", "feature_type",
-        "is_premium", "is_active",
-        "display_order", "created_at"
+        "id",
+        "name",
+        "feature_type",
+        "is_multi_mode",  
+        "fast_credit_cost",
+        "standard_credit_cost",
+        "advanced_credit_cost",
+        "is_premium",
+        "is_active",
+        "display_order",
+        "created_at",
     )
 
     filter_horizontal = ("allowed_models",)
@@ -381,36 +465,14 @@ class FeaturesAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         return False
 
-    # -----------------------------
-    # FILTER DEFAULT MODEL
-    # -----------------------------
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "default_model":
-            obj_id = request.resolver_match.kwargs.get("object_id")
-
-            if obj_id:
-                kwargs["queryset"] = AIModel.objects.filter(
-                    is_active=True
-                )
-            else:
-                kwargs["queryset"] = AIModel.objects.none()
-
+            kwargs["queryset"] = AIModel.objects.filter(is_active=True)
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
-    # -----------------------------
-    # FILTER ALLOWED MODELS
-    # -----------------------------
     def formfield_for_manytomany(self, db_field, request, **kwargs):
         if db_field.name == "allowed_models":
-            obj_id = request.resolver_match.kwargs.get("object_id")
-
-            if obj_id:
-                kwargs["queryset"] = AIModel.objects.filter(
-                    is_active=True
-                )
-            else:
-                kwargs["queryset"] = AIModel.objects.none()
-
+            kwargs["queryset"] = AIModel.objects.filter(is_active=True)
         return super().formfield_for_manytomany(db_field, request, **kwargs)
 
 

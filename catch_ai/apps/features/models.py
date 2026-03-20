@@ -1,7 +1,6 @@
 from django.db import models
-from django.core.exceptions import ValidationError
-from apps.templates.models import AIModel
 import uuid
+
 
 class Features(models.Model):
 
@@ -9,12 +8,24 @@ class Features(models.Model):
 
     name = models.CharField(max_length=255)
 
-    credit_cost = models.PositiveIntegerField(default=0)
-
     feature_type = models.CharField(
         max_length=50,
         unique=True
     )
+
+    is_multi_mode = models.BooleanField(default=False)
+    # ✔ True → fast/standard/advanced
+    # ✔ False → normal feature
+
+    # ============================
+    # CREDITS PER MODE
+    # ============================
+    credit_cost = models.PositiveIntegerField(default=0)
+    fast_credit_cost = models.PositiveIntegerField(default=0)
+    standard_credit_cost = models.PositiveIntegerField(default=0)
+    advanced_credit_cost = models.PositiveIntegerField(default=0)
+
+    credits_config = models.JSONField(blank=True, null=True)
 
     # ============================
     # MODELS CONFIG
@@ -34,12 +45,13 @@ class Features(models.Model):
     )
 
     # ============================
-    # CONFIGURATION
+    # INPUT SCHEMA
     # ============================
     input_schema = models.JSONField(blank=True, null=True)
 
-    default_settings = models.JSONField(blank=True, null=True)
-
+    # ============================
+    # MODEL MAPPING (fast → modelA)
+    # ============================
     model_mapping = models.JSONField(blank=True, null=True)
 
     # ============================
@@ -56,12 +68,6 @@ class Features(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     # ============================
-    # VALIDATION (ONLY FK SAFE)
-    # ============================
-    def clean(self):
-        super().clean()
-        
-    # ============================
     # SAVE
     # ============================
     def save(self, *args, **kwargs):
@@ -71,3 +77,45 @@ class Features(models.Model):
 
     def __str__(self):
         return self.name
+
+
+# ==========================================================
+# FEATURE SETTINGS
+# ==========================================================
+class FeatureSetting(models.Model):
+
+    MODE_CHOICES = (
+        ("fast", "Fast"),
+        ("standard", "Standard"),
+        ("advanced", "Advanced"),
+    )
+
+    feature = models.ForeignKey(
+        Features,
+        on_delete=models.CASCADE,
+        related_name="settings"
+    )
+
+    mode = models.CharField(max_length=20, choices=MODE_CHOICES)
+
+    # duration, aspect_ratio, resolution, generate_audio
+    key = models.CharField(max_length=100)
+
+    # select / boolean / slider / number
+    type = models.CharField(max_length=50, default="select")
+
+    # [5,10], ["9:16"], [true,false]
+    options = models.JSONField(default=list)
+
+    default_value = models.JSONField(null=True, blank=True)
+
+    is_required = models.BooleanField(default=True)
+
+    display_order = models.IntegerField(default=0)
+
+    class Meta:
+        unique_together = ("feature", "mode", "key")
+        ordering = ("mode", "display_order")
+
+    def __str__(self):
+        return f"{self.feature.name} - {self.mode} - {self.key}"

@@ -3,6 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
+from django.core.exceptions import ValidationError
 
 from apps.templates.models import Template, AIModel
 from apps.features.models import Features
@@ -12,16 +13,67 @@ from .tasks import run_generation
 
 
 # ==========================================================
-# CREATE GENERATION (TEMPLATE + FEATURE)
+# 🔥 HELPERS
+# ==========================================================
+def validate_feature_settings(feature, mode, user_settings):
+    db_settings = feature.settings.filter(mode=mode)
+
+    allowed = {}
+    required_keys = set()
+
+    for s in db_settings:
+        allowed[s.key] = s.options
+        if s.is_required:
+            required_keys.add(s.key)
+
+    user_settings = user_settings or {}
+
+    # -------------------------
+    # Check required fields
+    # -------------------------
+    for key in required_keys:
+        if key not in user_settings:
+            raise ValidationError(f"Missing required setting: {key}")
+
+    # -------------------------
+    # Validate values
+    # -------------------------
+    for key, value in user_settings.items():
+
+        if key not in allowed:
+            raise ValidationError(f"Invalid setting: {key}")
+
+        if allowed[key] and value not in allowed[key]:
+            raise ValidationError(
+                f"Invalid value '{value}' for {key}. Allowed: {allowed[key]}"
+            )
+
+    return user_settings
+
+
+def apply_default_settings(feature, mode, user_settings):
+    db_settings = feature.settings.filter(mode=mode)
+
+    final = user_settings.copy() if user_settings else {}
+
+    for s in db_settings:
+        if s.key not in final:
+            if s.default_value is not None:
+                final[s.key] = s.default_value
+            elif s.options:
+                final[s.key] = s.options[0]
+
+    return final
+
+
+# ==========================================================
+# 🚀 MAIN API
 # ==========================================================
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def create_generation(request):
 
     try:
-        # ============================
-        # VALIDATE INPUT
-        # ============================
         serializer = GenerateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -31,17 +83,19 @@ def create_generation(request):
         feature = data.get("feature_obj")
         input_data = data["input_data"]
         user_settings = data.get("settings")
+        quality = request.data.get("quality")  # optional
 
         model = None
         feature_key = None
         credit_cost = 1
         model_provider = None
-        settings = None
+        settings = {}
 
-        # ============================
-        # RESOLVE SOURCE
-        # ============================
+        # ==========================================================
+        # TEMPLATE FLOW
+        # ==========================================================
         if template:
+
             if not template.default_model:
                 return Response(
                     {"error": "No model configured for this template"},
@@ -50,28 +104,41 @@ def create_generation(request):
 
             model = template.default_model
             feature_key = model.feature_type
-            credit_cost = model.credit_cost or template.credit_cost
+            credit_cost = template.credit_cost
             model_provider = getattr(model, "provider", None)
 
+            settings = user_settings or {}
+
+        # ==========================================================
+        # FEATURE FLOW
+        # ==========================================================
         elif feature:
 
-            quality = request.data.get("quality")  # fast / standard / advanced
+            feature_key = feature.feature_type
 
             # ============================
-            # SPECIAL FEATURE (MAPPED)
+            # 🔥 MULTI-MODE FEATURE
             # ============================
-            if feature.model_mapping:
+            if feature.is_multi_mode:
 
-                # MUST require quality
                 if not quality:
                     return Response(
                         {"error": "quality is required (fast/standard/advanced)"},
                         status=400
                     )
 
-                if quality not in feature.model_mapping:
+                if quality not in ["fast", "standard", "advanced"]:
                     return Response(
-                        {"error": f"Invalid quality: {quality}"},
+                        {"error": "Invalid quality"},
+                        status=400
+                    )
+
+                # -------------------------
+                # MODEL MAPPING
+                # -------------------------
+                if not feature.model_mapping:
+                    return Response(
+                        {"error": "Model mapping not configured"},
                         status=400
                     )
 
@@ -91,17 +158,51 @@ def create_generation(request):
                         status=400
                     )
 
-                # EXTRA SAFETY (VERY IMPORTANT)
+                # safety
                 if model not in feature.allowed_models.all():
                     return Response(
-                        {"error": "Model is not allowed for this feature"},
+                        {"error": "Model not allowed for this feature"},
                         status=400
                     )
 
+                # -------------------------
+                # CREDIT (mode-based)
+                # -------------------------
+                if quality == "fast":
+                    credit_cost = feature.fast_credit_cost
+                elif quality == "standard":
+                    credit_cost = feature.standard_credit_cost
+                else:
+                    credit_cost = feature.advanced_credit_cost
+
+                # -------------------------
+                # SETTINGS VALIDATION
+                # -------------------------
+                try:
+                    settings = validate_feature_settings(
+                        feature,
+                        quality,
+                        user_settings
+                    )
+                    settings = apply_default_settings(
+                        feature,
+                        quality,
+                        settings
+                    )
+                except ValidationError as e:
+                    return Response({"error": str(e)}, status=400)
+
             # ============================
-            # NORMAL FEATURE
+            # 🔥 NORMAL FEATURE
             # ============================
             else:
+
+                if quality:
+                    return Response(
+                        {"error": "Quality not allowed for this feature"},
+                        status=400
+                    )
+
                 if not feature.default_model:
                     return Response(
                         {"error": "No model configured for this feature"},
@@ -110,33 +211,17 @@ def create_generation(request):
 
                 model = feature.default_model
 
-            # ============================
-            # COMMON ASSIGNMENTS
-            # ============================
-            feature_key = feature.feature_type
-            credit_cost = model.credit_cost or feature.credit_cost
-            model_provider = getattr(model, "provider", None)
+                credit_cost = feature.credit_cost or 1
+                model_provider = getattr(model, "provider", None)
+
+                settings = user_settings or {}
 
         else:
             return Response({"error": "Invalid request"}, status=400)
 
-        # ============================
-        # RESOLVE SETTINGS
-        # Priority:
-        # user > template > feature
-        # ============================
-        if user_settings:
-            settings = user_settings
-
-        elif template and getattr(template, "default_settings", None):
-            settings = template.default_settings
-
-        elif feature and getattr(feature, "default_settings", None):
-            settings = feature.default_settings
-
-        # ============================
-        # BUILD FINAL INPUT (PROMPT INJECTION)
-        # ============================
+        # ==========================================================
+        # PROMPT INJECTION
+        # ==========================================================
         final_input_data = input_data.copy()
 
         if template and template.prompt_template:
@@ -150,29 +235,27 @@ def create_generation(request):
 
             final_input_data["prompt"] = final_prompt
 
-        # ============================
-        # BUILD PAYLOAD
-        # ============================
+        # ==========================================================
+        # PAYLOAD
+        # ==========================================================
         payload = {
             "feature": feature_key,
             "model": model.model_name,
-            "inputs": final_input_data
+            "inputs": final_input_data,
         }
 
         if settings:
             payload["settings"] = settings
 
-        # ============================
+        # ==========================================================
         # CREATE GENERATION
-        # ============================
+        # ==========================================================
         with transaction.atomic():
 
             generation = Generation.objects.create(
                 user=request.user,
-
                 template=template,
                 feature=feature,
-
                 input_data=final_input_data,
                 status="pending",
 
@@ -182,18 +265,13 @@ def create_generation(request):
                 model_provider=model_provider,
                 credit_used=credit_cost,
 
-                # debug
                 request_payload=payload,
 
-                # UX
                 input_summary=(
                     template.name if template else feature.name
                 )
             )
 
-            # ============================
-            # SEND TO CELERY
-            # ============================
             task = run_generation.delay(generation.id, payload)
 
             generation.task_id = task.id
