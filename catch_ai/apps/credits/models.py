@@ -38,7 +38,7 @@ class UserCredits(models.Model):
         allow_used_update = kwargs.pop("allow_used_update", False)
 
         if not self.id:
-            self.id = f"crdt-{uuid.uuid4().hex[:8].upper()}"
+            self.id = f"crdt_{uuid.uuid4().hex[:8].upper()}"
 
         # 🔒 Prevent manual tampering of used_credits
         if self.pk and not allow_used_update:
@@ -99,7 +99,7 @@ class CreditTransaction(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.id:
-            self.id = f"trxn-{uuid.uuid4().hex[:10].upper()}"
+            self.id = f"trxn_{uuid.uuid4().hex[:10].upper()}"
         super().save(*args, **kwargs)
 
     def __str__(self):

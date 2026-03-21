@@ -90,7 +90,6 @@ def run_generation(self, generation_id, payload):
                 after = wallet.total_credits - wallet.used_credits
 
                 CreditTransaction.objects.create(
-                    id=f"txn_{generation.id}",
                     user=generation.user,
                     template=generation.template,
                     feature=generation.feature,
