@@ -26,7 +26,6 @@ def upload_file(file, path):
     if not content_type:
         content_type = "application/octet-stream"
 
-    # 🔥 IMPORTANT: use streaming instead of reading full file
     blob.chunk_size = 5 * 1024 * 1024  # 5MB chunks
 
     blob.upload_from_file(
@@ -55,8 +54,6 @@ def upload_generated_file(file_url, user_id):
     """
     Stream download AI generated file and upload to Firebase (NO RAM LOAD)
     """
-
-    # 🔥 STREAMING ENABLED
     response = requests.get(file_url, stream=True, timeout=120)
 
     if response.status_code != 200:
@@ -83,10 +80,10 @@ def upload_generated_file(file_url, user_id):
     if not content_type:
         content_type = "application/octet-stream"
 
-    # 🔥 PERFORMANCE BOOST
+    # PERFORMANCE BOOST
     blob.chunk_size = 5 * 1024 * 1024  # 5MB chunks
 
-    # 🔥 DIRECT STREAM PIPE (no full memory load)
+    # DIRECT STREAM PIPE (no full memory load)
     blob.upload_from_file(
         response.raw,
         content_type=content_type
@@ -95,7 +92,7 @@ def upload_generated_file(file_url, user_id):
     blob.make_public()
 
     return blob.public_url
-
+ 
 
 # ==========================================================
 # DELETE FILE
