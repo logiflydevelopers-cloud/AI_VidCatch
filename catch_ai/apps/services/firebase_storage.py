@@ -9,10 +9,9 @@ from .firebase import bucket
 # ==========================================================
 def upload_file(file, path):
     """
-    Upload user file (image/video/etc) to Firebase
+    Upload user file (image/video/etc) to Firebase (streaming optimized)
     """
 
-    # get extension safely
     extension = file.name.split(".")[-1].lower()
     filename = f"{uuid.uuid4()}.{extension}"
 
@@ -27,10 +26,13 @@ def upload_file(file, path):
     if not content_type:
         content_type = "application/octet-stream"
 
-    # upload file
-    blob.upload_from_string(
-        file.read(),
-        content_type=content_type
+    # 🔥 IMPORTANT: use streaming instead of reading full file
+    blob.chunk_size = 5 * 1024 * 1024  # 5MB chunks
+
+    blob.upload_from_file(
+        file,
+        content_type=content_type,
+        rewind=True
     )
 
     blob.make_public()
@@ -42,22 +44,20 @@ def upload_file(file, path):
 # USER INPUT UPLOAD
 # ==========================================================
 def upload_user_input(file, user_id):
-    """
-    Upload user input files used for AI generation
-    """
     path = f"users/{user_id}/input"
     return upload_file(file, path)
 
 
 # ==========================================================
-# GENERATED FILE UPLOAD (IMAGE + VIDEO)
+# GENERATED FILE UPLOAD (IMAGE + VIDEO) - OPTIMIZED
 # ==========================================================
 def upload_generated_file(file_url, user_id):
     """
-    Download AI generated file (image/video) and upload to Firebase
+    Stream download AI generated file and upload to Firebase (NO RAM LOAD)
     """
 
-    response = requests.get(file_url, timeout=120)
+    # 🔥 STREAMING ENABLED
+    response = requests.get(file_url, stream=True, timeout=120)
 
     if response.status_code != 200:
         raise Exception("Failed to download generated file")
@@ -65,7 +65,6 @@ def upload_generated_file(file_url, user_id):
     # extract extension safely
     extension = file_url.split(".")[-1].split("?")[0].lower()
 
-    # supported extensions
     valid_extensions = [
         "png", "jpg", "jpeg", "webp",
         "mp4", "mov", "webm"
@@ -79,14 +78,17 @@ def upload_generated_file(file_url, user_id):
 
     blob = bucket.blob(path)
 
-    # detect correct MIME type
+    # detect MIME type
     content_type, _ = mimetypes.guess_type(filename)
-
     if not content_type:
         content_type = "application/octet-stream"
 
-    blob.upload_from_string(
-        response.content,
+    # 🔥 PERFORMANCE BOOST
+    blob.chunk_size = 5 * 1024 * 1024  # 5MB chunks
+
+    # 🔥 DIRECT STREAM PIPE (no full memory load)
+    blob.upload_from_file(
+        response.raw,
         content_type=content_type
     )
 
@@ -102,7 +104,6 @@ def delete_file(file_url):
     """
     Delete file from Firebase using public URL
     """
-
     try:
         path = file_url.split(".appspot.com/")[-1]
         blob = bucket.blob(path)
