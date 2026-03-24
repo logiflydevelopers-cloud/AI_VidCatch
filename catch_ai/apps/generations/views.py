@@ -11,6 +11,7 @@ from .models import Generation
 from .serializers import GenerateSerializer, GenerationSerializer
 from .tasks import run_generation
 
+SPECIAL_FEATURES = ["text_to_video", "image_to_video", "colorize"]
 
 # ==========================================================
 # 🔥 HELPERS
@@ -116,20 +117,17 @@ def create_generation(request):
 
             feature_key = feature.feature_type
 
-            # ============================
-            # 🔥 MULTI-MODE FEATURE
-            # ============================
-            if feature.is_multi_mode:
+            if feature.feature_type in SPECIAL_FEATURES:
 
                 if not quality:
                     return Response(
-                        {"error": "quality is required (fast/standard/advanced)"},
+                        {"error": "quality is required"},
                         status=400
                     )
 
-                if quality not in ["fast", "standard", "advanced"]:
+                if not feature.model_mapping or quality not in feature.model_mapping:
                     return Response(
-                        {"error": "Invalid quality"},
+                        {"error": f"Invalid quality: {quality}"},
                         status=400
                     )
 
@@ -168,12 +166,10 @@ def create_generation(request):
                 # -------------------------
                 # CREDIT (mode-based)
                 # -------------------------
-                if quality == "fast":
-                    credit_cost = feature.fast_credit_cost
-                elif quality == "standard":
-                    credit_cost = feature.standard_credit_cost
+                if feature.credits_config and quality in feature.credits_config:
+                    credit_cost = feature.credits_config.get(quality, 1)
                 else:
-                    credit_cost = feature.advanced_credit_cost
+                    credit_cost = feature.credit_cost or 1
 
                 # -------------------------
                 # SETTINGS VALIDATION
