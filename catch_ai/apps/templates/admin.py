@@ -52,7 +52,6 @@ class TemplateAdminForm(forms.ModelForm):
 
         return cleaned_data
 
-
 # ==========================================================
 # AI MODEL ADMIN
 # ==========================================================
@@ -190,206 +189,132 @@ class TemplateAdmin(admin.ModelAdmin):
 # ==========================================================
 class FeatureAdminForm(forms.ModelForm):
 
-    fast_model = forms.ModelChoiceField(
-        queryset=AIModel.objects.none(),
-        required=False,
-        label="Fast Model"
-    )
-    standard_model = forms.ModelChoiceField(
-        queryset=AIModel.objects.none(),
-        required=False,
-        label="Standard Model"
-    )
-    advanced_model = forms.ModelChoiceField(
-        queryset=AIModel.objects.none(),
-        required=False,
-        label="Advanced Model"
-    )
+    fast_model = forms.ModelChoiceField(queryset=AIModel.objects.none(), required=False)
+    standard_model = forms.ModelChoiceField(queryset=AIModel.objects.none(), required=False)
+    advanced_model = forms.ModelChoiceField(queryset=AIModel.objects.none(), required=False)
+
+    bw_color_model = forms.ModelChoiceField(queryset=AIModel.objects.none(), required=False)
+    recolor_model = forms.ModelChoiceField(queryset=AIModel.objects.none(), required=False)
 
     class Meta:
         model = Features
-        fields = "__all__"
+        exclude = ("model_mapping",)   # ✅ IMPORTANT
         widgets = {
             "input_schema": JSONEditorWidget,
             "credits_config": JSONEditorWidget,
-            
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # -----------------------------
-        # Allowed models queryset
-        # -----------------------------
+        print("\n====== INIT START ======")
+        print("RAW DATA:", self.data)
+
         if self.data.get("allowed_models"):
-            qs = AIModel.objects.filter(
-                id__in=self.data.getlist("allowed_models")
-            )
+            qs = AIModel.objects.filter(id__in=self.data.getlist("allowed_models"))
         elif self.instance and self.instance.pk:
             qs = self.instance.allowed_models.all()
         else:
             qs = AIModel.objects.filter(is_active=True)
 
-        self.fields["fast_model"].queryset = qs
-        self.fields["standard_model"].queryset = qs
-        self.fields["advanced_model"].queryset = qs
+        for field in ["fast_model", "standard_model", "advanced_model", "bw_color_model", "recolor_model"]:
+            self.fields[field].queryset = qs
 
-        # -----------------------------
-        # Load existing mapping
-        # -----------------------------
-        mapping = getattr(self.instance, "model_mapping", None)
+        mapping = getattr(self.instance, "model_mapping", {}) or {}
+        print("Initial mapping:", mapping)
 
         if mapping:
-            try:
-                self.fields["fast_model"].initial = qs.filter(id=mapping.get("fast")).first()
-                self.fields["standard_model"].initial = qs.filter(id=mapping.get("standard")).first()
-                self.fields["advanced_model"].initial = qs.filter(id=mapping.get("advanced")).first()
-            except Exception:
-                pass
+            self.fields["bw_color_model"].initial = qs.filter(id=mapping.get("bw_color")).first()
+            self.fields["recolor_model"].initial = qs.filter(id=mapping.get("recolor")).first()
 
-        # -----------------------------
-        # Multi-mode detection (POST SAFE)
-        # -----------------------------
+        feature_type = self.data.get("feature_type") or getattr(self.instance, "feature_type", None)
+        print("Feature Type INIT:", feature_type)
+
         is_multi_mode = (
             self.data.get("is_multi_mode") in ["on", "true", True]
             or (self.instance and self.instance.is_multi_mode)
         )
+        print("Is Multi Mode INIT:", is_multi_mode)
 
         if not is_multi_mode:
             self.fields.pop("fast_model", None)
             self.fields.pop("standard_model", None)
             self.fields.pop("advanced_model", None)
 
+        if feature_type != "colorize":
+            self.fields.pop("bw_color_model", None)
+            self.fields.pop("recolor_model", None)
+
+        print("====== INIT END ======\n")
+
     def clean(self):
         cleaned_data = super().clean()
-
         allowed_models = cleaned_data.get("allowed_models") or []
-        default_model = cleaned_data.get("default_model")
+        allowed_ids = [m.id for m in allowed_models]
 
-        # -----------------------------
-        # Basic validation
-        # -----------------------------
-        if not allowed_models:
-            self.add_error("allowed_models", "At least 1 model is required")
-            return cleaned_data
 
-        if len(allowed_models) > 4:
-            self.add_error("allowed_models", "Maximum 4 models allowed")
-
-        # -----------------------------
-        # Default model validation
-        # -----------------------------
-        if default_model and default_model not in allowed_models:
-            self.add_error(
-                "default_model",
-                "Default model must be one of the allowed models"
-            )
-
-        if not default_model and allowed_models:
-            cleaned_data["default_model"] = allowed_models[0]
+        feature_type = self.instance.feature_type
+        is_multi_mode = cleaned_data.get("is_multi_mode")
 
         # -----------------------------
         # MULTI MODE
         # -----------------------------
-        if cleaned_data.get("is_multi_mode"):
+        if is_multi_mode:
+            print(">>> ENTER MULTI MODE")
 
             fast = cleaned_data.get("fast_model")
             standard = cleaned_data.get("standard_model")
             advanced = cleaned_data.get("advanced_model")
 
-            if not fast:
-                self.add_error("fast_model", "Fast model is required")
+            if fast and standard and advanced:
+                self.instance.model_mapping = {
+                    "fast": str(fast.id),
+                    "standard": str(standard.id),
+                    "advanced": str(advanced.id),
+                }
 
-            if not standard:
-                self.add_error("standard_model", "Standard model is required")
+        # -----------------------------
+        # COLORIZE MODE
+        # -----------------------------
+        elif feature_type == "colorize":
+            print(">>> ENTER COLORIZE MODE")
 
-            if not advanced:
-                self.add_error("advanced_model", "Advanced model is required")
+            bw = cleaned_data.get("bw_color_model")
+            recolor = cleaned_data.get("recolor_model")
 
-            if not all([fast, standard, advanced]):
-                return cleaned_data
+            if bw and recolor:
+                print("Setting COLORIZE mapping...")
 
-            # Ensure models belong to allowed_models
-            for field_name, model in {
-                "fast_model": fast,
-                "standard_model": standard,
-                "advanced_model": advanced,
-            }.items():
-                if model not in allowed_models:
-                    self.add_error(
-                        field_name,
-                        "Selected model must be in allowed_models"
-                    )
+                mapping = {
+                    "bw_color": str(bw.id),
+                    "recolor": str(recolor.id),
+                }
 
-            # ==============================
-            # CREDITS CONFIG VALIDATION 
-            # ==============================
-            credits_config = cleaned_data.get("credits_config")
+                self.instance.model_mapping = mapping
 
-            if credits_config:
-
-                if not isinstance(credits_config, dict):
-                    self.add_error("credits_config", "Must be a valid JSON object")
-                    return cleaned_data
-
-                # --------------------------
-                # Validate base credits
-                # --------------------------
-                for key in ["fast", "standard", "advanced"]:
-                    if key in credits_config:
-                        if not isinstance(credits_config[key], int) or credits_config[key] < 0:
-                            self.add_error(
-                                "credits_config",
-                                f"{key} credit must be a positive integer"
-                            )
-
-                # --------------------------
-                # Validate AUDIO (addon)
-                # --------------------------
-                audio = credits_config.get("audio")
-
-                if audio:
-                    if not isinstance(audio, dict):
-                        self.add_error("credits_config", "audio must be an object")
-
-                    else:
-                        for mode, value in audio.items():
-                            if mode not in ["fast", "standard", "advanced"]:
-                                self.add_error(
-                                    "credits_config",
-                                    f"Invalid audio mode: {mode}"
-                                )
-
-                            if not isinstance(value, int) or value < 0:
-                                self.add_error(
-                                    "credits_config",
-                                    f"Audio credit for {mode} must be positive integer"
-                                )
-
-            # SAVE mapping
-            cleaned_data["model_mapping"] = {
-                "fast": str(fast.id),
-                "standard": str(standard.id),
-                "advanced": str(advanced.id),
-            }
-
+        # -----------------------------
+        # NORMAL
+        # -----------------------------
         else:
-            # clear mapping if not multi-mode
-            cleaned_data["model_mapping"] = None
+            self.instance.model_mapping = None
 
         return cleaned_data
 
     def save(self, commit=True):
         instance = super().save(commit=False)
 
-        instance.model_mapping = self.cleaned_data.get("model_mapping")
+        print("\n====== FORM SAVE START ======")
+        print("Instance mapping BEFORE save:", instance.model_mapping)
 
         if commit:
             instance.save()
             self.save_m2m()
 
+        print("Instance mapping AFTER save:", instance.model_mapping)
+        print("====== FORM SAVE END ======\n")
+
         return instance
-       
+
 class FeatureSettingInline(admin.TabularInline):
     model = FeatureSetting
     extra = 1
@@ -404,7 +329,6 @@ class FeatureSettingInline(admin.TabularInline):
         "is_required",
         "display_order",
     )
-
 
 # ==========================================================
 # FEATURE ADMIN
@@ -474,7 +398,6 @@ class FeaturesAdmin(admin.ModelAdmin):
         if db_field.name == "allowed_models":
             kwargs["queryset"] = AIModel.objects.filter(is_active=True)
         return super().formfield_for_manytomany(db_field, request, **kwargs)
-
 
 # ==========================================================
 # USER CREDITS ADMIN

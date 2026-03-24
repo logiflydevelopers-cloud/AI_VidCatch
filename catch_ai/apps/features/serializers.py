@@ -39,28 +39,52 @@ class FeatureSerializer(serializers.ModelSerializer):
     # -----------------------------
     def get_models(self, obj):
 
-        SPECIAL_FEATURES = ["text_to_video", "image_to_video"]
+        SPECIAL_FEATURES = ["text_to_video", "image_to_video", "colorize"]
 
-        # Special features → return mapped models
+        # -----------------------------
+        # Special features → mapped models
+        # -----------------------------
         if obj.feature_type in SPECIAL_FEATURES and obj.model_mapping:
 
             models_data = {}
 
-            for key, model_id in obj.model_mapping.items():
-                try:
-                    model = AIModel.objects.get(id=model_id, is_active=True)
+            # 🔥 Clean IDs (handle string/int safely)
+            model_ids = [
+                int(v) for v in obj.model_mapping.values() if v
+            ]
 
+            # 🔥 Single DB query (optimization)
+            models = AIModel.objects.filter(
+                id__in=model_ids,
+                is_active=True
+            )
+
+            model_map = {m.id: m for m in models}
+
+            # 🔥 Build response
+            for key, model_id in obj.model_mapping.items():
+
+                try:
+                    model_id = int(model_id)
+                except (TypeError, ValueError):
+                    models_data[key] = None
+                    continue
+
+                model = model_map.get(model_id)
+
+                if model:
                     models_data[key] = {
                         "id": model.id,
                         "name": model.name
                     }
-
-                except AIModel.DoesNotExist:
-                    models_data[key] = None  # safety fallback
+                else:
+                    models_data[key] = None  # fallback
 
             return models_data
 
-        # Normal features → return list
+        # -----------------------------
+        # Normal features → list
+        # -----------------------------
         return [
             {
                 "id": model.id,
@@ -68,7 +92,6 @@ class FeatureSerializer(serializers.ModelSerializer):
             }
             for model in obj.allowed_models.filter(is_active=True)
         ]
-
     # -----------------------------
     # GET DEFAULT MODEL
     # -----------------------------

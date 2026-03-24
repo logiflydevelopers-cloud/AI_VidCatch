@@ -6,35 +6,55 @@ from django.shortcuts import get_object_or_404
 from .models import Features
 from apps.templates.models import AIModel
 
-
-SPECIAL_FEATURES = ["text_to_video", "image_to_video"]
-
+SPECIAL_FEATURES = ["text_to_video", "image_to_video", "colorize"]
 
 # ==========================================================
 # HELPER: GET MODELS
 # ==========================================================
 def get_feature_models(feature):
 
-    # Special features (fast / standard / advanced)
+    # Special features (video + colorize)
     if feature.feature_type in SPECIAL_FEATURES and feature.model_mapping:
 
         data = {}
 
-        for key, model_id in feature.model_mapping.items():
-            try:
-                model = AIModel.objects.get(id=model_id, is_active=True)
+        # 🔥 Ensure IDs are clean (string → int safe)
+        model_ids = [
+            int(v) for v in feature.model_mapping.values() if v
+        ]
 
+        # 🔥 Fetch in single query
+        models = AIModel.objects.filter(
+            id__in=model_ids,
+            is_active=True
+        )
+
+        model_map = {m.id: m for m in models}
+
+        # 🔥 Build response
+        for key, model_id in feature.model_mapping.items():
+
+            try:
+                model_id = int(model_id)
+            except (TypeError, ValueError):
+                data[key] = None
+                continue
+
+            model = model_map.get(model_id)
+
+            if model:
                 data[key] = {
                     "id": model.id,
                     "name": model.name
                 }
-
-            except AIModel.DoesNotExist:
+            else:
                 data[key] = None
 
         return data
 
-    # Normal features
+    # -----------------------------
+    # Normal features (fallback)
+    # -----------------------------
     return [
         {
             "id": m.id,
@@ -48,8 +68,18 @@ def get_feature_models(feature):
 # ==========================================================
 def get_normalized_credits(feature):
 
+    # 🔥 SPECIAL FEATURES (video + colorize)
+    if feature.feature_type in SPECIAL_FEATURES:
+
+        if feature.credits_config:
+            return feature.credits_config
+
+        return {
+            "default": feature.credit_cost
+        }
+
     # ============================
-    # BASE CREDITS (FROM FIELDS)
+    # NORMAL FEATURES
     # ============================
     if feature.is_multi_mode:
         credits = {
@@ -61,12 +91,6 @@ def get_normalized_credits(feature):
         credits = {
             "default": feature.credit_cost
         }
-
-    # ============================
-    # ADDONS (FROM JSON)
-    # ============================
-    if feature.credits_config:
-        credits.update(feature.credits_config)
 
     return credits
 
@@ -101,7 +125,6 @@ def get_feature_settings(feature):
 
     return settings
 
-
 # ==========================================================
 # LIST FEATURES
 # ==========================================================
@@ -134,7 +157,6 @@ def list_features(request):
         })
 
     return Response(data)
-
 
 # ==========================================================
 # SINGLE FEATURE
