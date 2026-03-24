@@ -68,18 +68,8 @@ def get_feature_models(feature):
 # ==========================================================
 def get_normalized_credits(feature):
 
-    # 🔥 SPECIAL FEATURES (video + colorize)
-    if feature.feature_type in SPECIAL_FEATURES:
-
-        if feature.credits_config:
-            return feature.credits_config
-
-        return {
-            "default": feature.credit_cost
-        }
-
     # ============================
-    # NORMAL FEATURES
+    # BASE CREDITS (FROM FIELDS)
     # ============================
     if feature.is_multi_mode:
         credits = {
@@ -91,6 +81,12 @@ def get_normalized_credits(feature):
         credits = {
             "default": feature.credit_cost
         }
+
+    # ============================
+    # ADDONS (FROM JSON)
+    # ============================
+    if feature.credits_config:
+        credits.update(feature.credits_config)
 
     return credits
 
