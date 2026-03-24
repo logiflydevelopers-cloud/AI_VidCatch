@@ -66,8 +66,7 @@ INSTALLED_APPS = [
     'apps.generations',
     'apps.features',
     'apps.credits',
-    'apps.subscriptions',
-    'apps.model_usage'
+    'apps.subscriptions'
 ]
 
 MIDDLEWARE = [
@@ -106,24 +105,24 @@ WSGI_APPLICATION = 'catch_ai.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": config("DB_NAME"),
-        "USER": config("DB_USER"),
-        "PASSWORD": config("DB_PASSWORD"),
-        "HOST": config("DB_HOST"),
-        "PORT": config("DB_PORT"),
-    }
-}
-
-
 # DATABASES = {
-#     "default": dj_database_url.config(
-#         default=os.environ.get("DATABASE_URL"),
-#         conn_max_age=600
-#     )
+#     "default": {
+#         "ENGINE": "django.db.backends.postgresql",
+#         "NAME": config("DB_NAME"),
+#         "USER": config("DB_USER"),
+#         "PASSWORD": config("DB_PASSWORD"),
+#         "HOST": config("DB_HOST"),
+#         "PORT": config("DB_PORT"),
+#     }
 # }
+
+
+DATABASES = {
+    "default": dj_database_url.config(
+        default=os.environ.get("DATABASE_URL"),
+        conn_max_age=600
+    )
+}
 
 
 AUTH_USER_MODEL = "users.User"
