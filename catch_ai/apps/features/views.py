@@ -18,12 +18,12 @@ def get_feature_models(feature):
 
         data = {}
 
-        # 🔥 Ensure IDs are clean (string → int safe)
+        # NO int conversion (IDs are strings)
         model_ids = [
-            int(v) for v in feature.model_mapping.values() if v
+            v for v in feature.model_mapping.values() if v
         ]
 
-        # 🔥 Fetch in single query
+        # Query works with string IDs
         models = AIModel.objects.filter(
             id__in=model_ids,
             is_active=True
@@ -31,15 +31,14 @@ def get_feature_models(feature):
 
         model_map = {m.id: m for m in models}
 
-        # 🔥 Build response
+        # Build response
         for key, model_id in feature.model_mapping.items():
 
-            try:
-                model_id = int(model_id)
-            except (TypeError, ValueError):
+            if not model_id:
                 data[key] = None
                 continue
 
+            # NO int conversion
             model = model_map.get(model_id)
 
             if model:
