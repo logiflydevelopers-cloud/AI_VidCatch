@@ -5,6 +5,11 @@ from apps.features.models import Features
 
 
 
+from rest_framework import serializers
+from apps.templates.models import Template
+from apps.features.models import Features
+
+
 class GenerateSerializer(serializers.Serializer):
 
     template_id = serializers.CharField(required=False)
@@ -14,13 +19,10 @@ class GenerateSerializer(serializers.Serializer):
     model_id = serializers.CharField(required=False)
 
     input_data = serializers.JSONField()
-
     settings = serializers.JSONField(required=False)
 
-    quality = serializers.ChoiceField(
-        choices=["fast", "standard", "advanced"],
-        required=False
-    )
+    # ✅ FIX: dynamic quality (NO hardcoding)
+    quality = serializers.CharField(required=False)
 
     def validate(self, data):
 
@@ -28,6 +30,7 @@ class GenerateSerializer(serializers.Serializer):
         feature_id = data.get("feature_id")
         input_data = data.get("input_data", {})
         settings = data.get("settings")
+        quality = data.get("quality")
 
         # =====================================
         # VALIDATE SOURCE
@@ -52,7 +55,7 @@ class GenerateSerializer(serializers.Serializer):
             raise serializers.ValidationError("settings must be an object")
 
         # =====================================
-        # FETCH SOURCE (avoid duplicate queries later)
+        # FETCH SOURCE
         # =====================================
         template = None
         feature = None
@@ -73,15 +76,39 @@ class GenerateSerializer(serializers.Serializer):
 
             schema = feature.input_schema or {}
 
-        # attach to validated_data (avoid re-query in view)
+        # attach to validated_data
         data["template_obj"] = template
         data["feature_obj"] = feature
 
         # =====================================
-        # VALIDATE AGAINST INPUT SCHEMA
+        # 🔥 DYNAMIC QUALITY VALIDATION
+        # =====================================
+        if feature:
+
+            # If feature has model_mapping → dynamic modes
+            if feature.model_mapping:
+
+                if not quality:
+                    raise serializers.ValidationError({
+                        "quality": "This field is required"
+                    })
+
+                if quality not in feature.model_mapping:
+                    raise serializers.ValidationError({
+                        "quality": f"{quality} is not a valid choice"
+                    })
+
+            else:
+                # Normal feature → quality not allowed
+                if quality:
+                    raise serializers.ValidationError({
+                        "quality": "Not allowed for this feature"
+                    })
+
+        # =====================================
+        # INPUT SCHEMA VALIDATION
         # =====================================
         fields = schema.get("fields", [])
-
         clean_input = {}
 
         for field in fields:
@@ -98,9 +125,9 @@ class GenerateSerializer(serializers.Serializer):
             if value is None:
                 continue
 
-            # =====================================
-            # TYPE VALIDATION (NEW)
-            # =====================================
+            # ============================
+            # TYPE VALIDATION
+            # ============================
             if field_type == "number":
                 if not isinstance(value, (int, float)):
                     raise serializers.ValidationError(f"{name} must be a number")
@@ -113,9 +140,9 @@ class GenerateSerializer(serializers.Serializer):
                 if not isinstance(value, str):
                     raise serializers.ValidationError(f"{name} must be an image URL")
 
-            # =====================================
+            # ============================
             # LIMIT VALIDATION
-            # =====================================
+            # ============================
             min_val = field.get("min")
             max_val = field.get("max")
 
@@ -138,12 +165,10 @@ class GenerateSerializer(serializers.Serializer):
         # SETTINGS VALIDATION
         # =====================================
         if settings:
-            # You can later add schema validation for settings too
             data["settings"] = settings
 
         return data
     
-
 class GenerationSerializer(serializers.ModelSerializer):
 
     template_name = serializers.SerializerMethodField()
