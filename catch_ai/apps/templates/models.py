@@ -29,6 +29,10 @@ CATEGORY_CHOICES = [
     ("bw", "B&W"),
 ]
 
+import uuid
+from django.db import models
+
+
 class AIModel(models.Model):
 
     id = models.CharField(primary_key=True, max_length=30, editable=False)
@@ -50,15 +54,20 @@ class AIModel(models.Model):
 
     provider = models.CharField(max_length=50, blank=True, null=True)
 
-    # cost per generation (credits)
+    # 💰 Cost per usage
     credit_cost = models.PositiveIntegerField(default=1)
 
-    # REMOVE THIS (handled in Feature)
-    # is_default = models.BooleanField(default=False)
+    # 🔥 NEW: Usage tracking
+    total_usage_count = models.PositiveIntegerField(default=0)
+
+    # 🔥 NEW: Total credits consumed (analytics)
+    total_credits_used = models.PositiveIntegerField(default=0)
 
     is_active = models.BooleanField(default=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
+
+    updated_at = models.DateTimeField(auto_now=True)
 
     # ============================
     # META (performance + safety)
@@ -67,6 +76,7 @@ class AIModel(models.Model):
         indexes = [
             models.Index(fields=["feature_type"]),
             models.Index(fields=["model_name"]),
+            models.Index(fields=["is_active"]),
         ]
 
     # ============================
@@ -76,6 +86,17 @@ class AIModel(models.Model):
         if not self.id:
             self.id = f"mdl_{uuid.uuid4().hex[:8].upper()}"
         super().save(*args, **kwargs)
+
+    # ============================
+    # USAGE TRACKING METHOD 🔥
+    # ============================
+    def track_usage(self):
+        """
+        Call this whenever model is used
+        """
+        self.total_usage_count += 1
+        self.total_credits_used += self.credit_cost
+        self.save(update_fields=["total_usage_count", "total_credits_used"])
 
     def __str__(self):
         return f"{self.name} ({self.feature_type})"

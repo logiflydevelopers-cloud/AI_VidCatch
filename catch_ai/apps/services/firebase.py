@@ -1,5 +1,5 @@
 import firebase_admin
-from firebase_admin import credentials, storage
+from firebase_admin import credentials, storage, firestore
 from django.conf import settings
 
 if not firebase_admin._apps:
@@ -9,3 +9,4 @@ if not firebase_admin._apps:
     })
 
 bucket = storage.bucket()
+db = firestore.client()

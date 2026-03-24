@@ -4,18 +4,38 @@ from apps.users.models import User
 from django.utils import timezone
 from datetime import timedelta
 
+
+# ============================
+# HELPERS
+# ============================
+
+def generate_plan_id():
+    return "plan_" + uuid.uuid4().hex[:6].upper()
+
+
 def generate_sub_id():
     return "sub_" + uuid.uuid4().hex[:8].upper()
+
 
 def default_end_date():
     return timezone.now() + timedelta(days=30)
 
+
+# ============================
+# PLAN MODEL
+# ============================
+
 class Plan(models.Model):
-    id = models.CharField(primary_key=True, max_length=20, editable=False)
+
+    id = models.CharField(
+        primary_key=True,
+        max_length=20,
+        editable=False
+    )
 
     name = models.CharField(max_length=255)
 
-    credits_per_month = models.IntegerField()
+    credits_per_month = models.IntegerField(default=0)
 
     price = models.DecimalField(max_digits=10, decimal_places=2)
 
@@ -32,16 +52,18 @@ class Plan(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     # ============================
-    # SAVE
+    # SAVE (ONLY IF NOT USING FIREBASE ID)
     # ============================
     def save(self, *args, **kwargs):
-        if not self.id:
-            self.id = f"plan_{uuid.uuid4().hex[:6].upper()}"
         super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name
-    
+
+
+# ============================
+# USER SUBSCRIPTION MODEL
+# ============================
 
 class UserSubscription(models.Model):
 
@@ -51,36 +73,60 @@ class UserSubscription(models.Model):
         ("cancelled", "Cancelled"),
     )
 
-    id = models.CharField(primary_key=True, max_length=20, editable=False)
+    id = models.CharField(
+        primary_key=True,
+        max_length=20,
+        editable=False
+    )
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="subscriptions"
+    )
 
-    current_plan_id = models.ForeignKey(
+    current_plan = models.ForeignKey(
         Plan,
         on_delete=models.SET_NULL,
         null=True,
-        blank=True
+        blank=True,
+        related_name="user_subscriptions"
     )
 
     start_date = models.DateTimeField(default=timezone.now)
 
-    end_date = models.DateTimeField(default=default_end_date)
+    end_date = models.DateTimeField()
 
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="active")
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="active"
+    )
 
     auto_renew = models.BooleanField(default=False)
 
-    credits_remaining= models.IntegerField(default=0)
+    credits_remaining = models.IntegerField(default=0)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
     # ============================
-    # SAVE
+    # SAVE LOGIC
     # ============================
     def save(self, *args, **kwargs):
+
+        # Generate ID
         if not self.id:
-            self.id = f"sub_{uuid.uuid4().hex[:6].upper()}"
+            self.id = generate_sub_id()
+
+        # Set end_date based on plan validity
+        if self.current_plan and not self.end_date:
+            self.end_date = self.start_date + timedelta(days=self.current_plan.validity_days)
+
+        # Set initial credits
+        if self.current_plan and self.credits_remaining == 0:
+            self.credits_remaining = self.current_plan.credits_per_month
+
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return self.name
+        return f"{self.user} - {self.current_plan} ({self.status})"

@@ -268,6 +268,11 @@ def create_generation(request):
                 )
             )
 
+            # ============================
+            # 🔥 TRACK MODEL USAGE
+            # ============================
+            model.track_usage()
+
             task = run_generation.delay(generation.id, payload)
 
             generation.task_id = task.id

@@ -30,7 +30,8 @@ urlpatterns = [
     path("api/templates/", include("apps.templates.urls")),
     # path("api/admin/templates/", include("apps.templates.admin_urls")),
     path("api/generations/", include("apps.generations.urls")),
-    path("api/features/", include("apps.features.urls"))
+    path("api/features/", include("apps.features.urls")),
+    path("api/sunscriptions/", include("apps.subscriptions.urls"))
 
 ]
 
