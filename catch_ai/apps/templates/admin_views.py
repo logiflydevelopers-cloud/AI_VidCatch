@@ -6,6 +6,9 @@ from django.shortcuts import get_object_or_404
 from .models import Template
 from .serializers import AdminTemplateSerializer
 from .permissions import IsAdmin
+from django.db import transaction
+import json
+
 
 from apps.services.firebase_storage import upload_file
 
@@ -15,47 +18,74 @@ from apps.services.firebase_storage import upload_file
 # ================================
 @api_view(["POST"])
 @permission_classes([IsAdmin])
+@api_view(["POST"])
+@permission_classes([IsAdmin])
 def create_template(request):
 
-    # Step 1: Create template (without files first)
-    serializer = AdminTemplateSerializer(data=request.data)
+    try:
+        data = request.data.copy()
 
-    if not serializer.is_valid():
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # ================================
+        # FIX JSON FIELDS (IMPORTANT)
+        # ================================
+        if "input_schema" in data and isinstance(data["input_schema"], str):
+            data["input_schema"] = json.loads(data["input_schema"])
 
-    template = serializer.save()
+        if "default_settings" in data and isinstance(data["default_settings"], str):
+            data["default_settings"] = json.loads(data["default_settings"])
 
-    # Step 2: Upload Cover Image
-    cover_file = request.FILES.get("cover_image")
+        # ================================
+        # VALIDATE + CREATE TEMPLATE
+        # ================================
+        serializer = AdminTemplateSerializer(data=data)
 
-    if cover_file:
-        cover_path = f"templates/{template.id}/cover"
-        cover_url = upload_file(cover_file, cover_path)
-        template.cover_image = cover_url
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    # Step 3: Upload Preview Media (Multiple)
-    preview_files = request.FILES.getlist("preview_media")
+        with transaction.atomic():
 
-    preview_urls = []
+            template = serializer.save()
 
-    if preview_files:
-        preview_path = f"templates/{template.id}/previews"
+            # ================================
+            # UPLOAD COVER IMAGE
+            # ================================
+            cover_file = request.FILES.get("cover_image")
 
-        for file in preview_files:
-            url = upload_file(file, preview_path)
-            preview_urls.append(url)
+            if cover_file:
+                cover_path = f"templates/{template.id}/cover"
+                cover_url = upload_file(cover_file, cover_path)
+                template.cover_image = cover_url
 
-    # If your model has JSONField / ArrayField
-    if preview_urls:
-        template.preview_media = preview_urls
+            # ================================
+            # UPLOAD PREVIEW MEDIA
+            # ================================
+            preview_files = request.FILES.getlist("preview_media")
 
-    # Step 4: Save everything
-    template.save()
+            preview_urls = []
 
-    return Response({
-        "message": "Template created successfully",
-        "data": AdminTemplateSerializer(template).data
-    }, status=status.HTTP_201_CREATED)
+            if preview_files:
+                preview_path = f"templates/{template.id}/previews"
+
+                for file in preview_files:
+                    url = upload_file(file, preview_path)
+                    preview_urls.append(url)
+
+                template.preview_media = preview_urls
+
+            # ================================
+            # SAVE FINAL TEMPLATE
+            # ================================
+            template.save()
+
+        return Response({
+            "message": "Template created successfully",
+            "data": AdminTemplateSerializer(template).data
+        }, status=status.HTTP_201_CREATED)
+
+    except Exception as e:
+        return Response({
+            "error": str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # ================================
 # UPDATE TEMPLATE
