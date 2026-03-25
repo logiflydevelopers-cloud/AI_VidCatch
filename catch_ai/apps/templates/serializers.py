@@ -40,7 +40,8 @@ class AdminTemplateSerializer(serializers.ModelSerializer):
 
     allowed_models = serializers.PrimaryKeyRelatedField(
         queryset=AIModel.objects.filter(is_active=True),
-        many=True
+        many=True,
+        required=False
     )
 
     default_model = serializers.PrimaryKeyRelatedField(
@@ -49,20 +50,30 @@ class AdminTemplateSerializer(serializers.ModelSerializer):
         allow_null=True
     )
 
-    # ✅ Make these optional because we upload separately
+    # 🔥 IMPORTANT: ignore file validation (handled in view)
     cover_image = serializers.CharField(required=False, allow_null=True)
     preview_media = serializers.ListField(
         child=serializers.CharField(),
-        required=False
+        required=False,
+        allow_empty=True
     )
 
     class Meta:
         model = Template
         fields = "__all__"
+        extra_kwargs = {
+            "cover_image": {"required": False},
+            "preview_media": {"required": False},
+            "default_settings": {"required": False},
+            "prompt_template": {"required": False},
+        }
 
+    # ============================
+    # VALIDATION
+    # ============================
     def validate(self, data):
 
-        allowed_models = data.get("allowed_models")
+        allowed_models = data.get("allowed_models", [])
         default_model = data.get("default_model")
         feature_type = data.get("feature_type")
 
@@ -70,23 +81,24 @@ class AdminTemplateSerializer(serializers.ModelSerializer):
         if default_model:
             if allowed_models and default_model not in allowed_models:
                 raise serializers.ValidationError(
-                    "default_model must be in allowed_models"
+                    {"default_model": "Must be included in allowed_models"}
                 )
 
             # ✅ feature_type match
-            if default_model.feature_type != feature_type:
+            if feature_type and default_model.feature_type != feature_type:
                 raise serializers.ValidationError(
-                    "Model feature_type must match template feature_type"
+                    {"default_model": "Model feature_type must match template feature_type"}
                 )
 
         return data
 
+    # ============================
+    # CREATE
+    # ============================
     def create(self, validated_data):
-        """
-        Handle M2M properly
-        """
+
         allowed_models = validated_data.pop("allowed_models", [])
-        
+
         template = Template.objects.create(**validated_data)
 
         if allowed_models:
@@ -94,12 +106,14 @@ class AdminTemplateSerializer(serializers.ModelSerializer):
 
         return template
 
+    # ============================
+    # UPDATE
+    # ============================
     def update(self, instance, validated_data):
-        """
-        Handle update + M2M
-        """
+
         allowed_models = validated_data.pop("allowed_models", None)
 
+        # update fields safely
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 

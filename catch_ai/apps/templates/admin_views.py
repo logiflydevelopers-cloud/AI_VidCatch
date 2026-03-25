@@ -26,16 +26,27 @@ def create_template(request):
         data = request.data.copy()
 
         # ================================
-        # FIX JSON FIELDS (IMPORTANT)
+        # REMOVE FILE FIELDS (IMPORTANT 🔥)
         # ================================
-        if "input_schema" in data and isinstance(data["input_schema"], str):
-            data["input_schema"] = json.loads(data["input_schema"])
-
-        if "default_settings" in data and isinstance(data["default_settings"], str):
-            data["default_settings"] = json.loads(data["default_settings"])
+        data.pop("cover_image", None)
+        data.pop("preview_media", None)
 
         # ================================
-        # VALIDATE + CREATE TEMPLATE
+        # FIX JSON FIELDS
+        # ================================
+        try:
+            if "input_schema" in request.data:
+                data["input_schema"] = json.loads(request.data.get("input_schema"))
+
+            if "default_settings" in request.data:
+                data["default_settings"] = json.loads(request.data.get("default_settings"))
+        except json.JSONDecodeError:
+            return Response({
+                "error": "Invalid JSON in input_schema or default_settings"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # ================================
+        # VALIDATE SERIALIZER
         # ================================
         serializer = AdminTemplateSerializer(data=data)
 
@@ -53,27 +64,25 @@ def create_template(request):
 
             if cover_file:
                 cover_path = f"templates/{template.id}/cover"
-                cover_url = upload_file(cover_file, cover_path)
-                template.cover_image = cover_url
+                template.cover_image = upload_file(cover_file, cover_path)
 
             # ================================
             # UPLOAD PREVIEW MEDIA
             # ================================
             preview_files = request.FILES.getlist("preview_media")
 
-            preview_urls = []
-
             if preview_files:
                 preview_path = f"templates/{template.id}/previews"
 
-                for file in preview_files:
-                    url = upload_file(file, preview_path)
-                    preview_urls.append(url)
+                preview_urls = [
+                    upload_file(file, preview_path)
+                    for file in preview_files
+                ]
 
                 template.preview_media = preview_urls
 
             # ================================
-            # SAVE FINAL TEMPLATE
+            # FINAL SAVE
             # ================================
             template.save()
 
