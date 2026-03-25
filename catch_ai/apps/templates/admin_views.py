@@ -9,6 +9,7 @@ from .serializers import AdminTemplateSerializer, AIModelSerializer
 from .permissions import IsAdmin
 from django.db import transaction
 import json
+from django.db.models import Q
 
 
 from apps.services.firebase_storage import upload_file
@@ -17,6 +18,7 @@ from apps.services.firebase_storage import upload_file
 # ================================
 # CREATE TEMPLATE
 # ================================
+
 @csrf_exempt
 @api_view(["POST"])
 @permission_classes([IsAdmin])
@@ -32,42 +34,52 @@ def create_template(request):
         data.pop("preview_media", None)
 
         # ================================
-        # CONVERT model_name → id 🔥
+        # CONVERT model_name / name → id 🔥
         # ================================
-        allowed_model_names = request.data.getlist("allowed_models")
-        default_model_name = request.data.get("default_model")
+        allowed_inputs = request.data.getlist("allowed_models")
+        default_input = request.data.get("default_model")
 
-        if allowed_model_names:
+        if allowed_inputs:
             models_qs = AIModel.objects.filter(
-                model_name__in=allowed_model_names,
                 is_active=True
+            ).filter(
+                Q(model_name__in=allowed_inputs) |
+                Q(name__in=allowed_inputs)
             )
 
-            model_map = {m.model_name: m for m in models_qs}
+            # map both model_name & name → object
+            model_map = {}
+            for m in models_qs:
+                model_map[m.model_name] = m
+                model_map[m.name] = m
 
             # check missing
-            missing = set(allowed_model_names) - set(model_map.keys())
+            missing = [m for m in allowed_inputs if m not in model_map]
             if missing:
                 return Response({
-                    "error": f"Invalid allowed_models: {list(missing)}"
+                    "error": f"Invalid allowed_models: {missing}"
                 }, status=400)
 
             data.setlist(
                 "allowed_models",
-                [model_map[name].id for name in allowed_model_names]
+                [model_map[m].id for m in allowed_inputs]
             )
 
-        if default_model_name:
-            try:
-                model_obj = AIModel.objects.get(
-                    model_name=default_model_name,
-                    is_active=True
-                )
-                data["default_model"] = model_obj.id
-            except AIModel.DoesNotExist:
+        # ================================
+        # DEFAULT MODEL
+        # ================================
+        if default_input:
+            model_obj = AIModel.objects.filter(
+                Q(model_name=default_input) | Q(name=default_input),
+                is_active=True
+            ).first()
+
+            if not model_obj:
                 return Response({
-                    "error": f"Invalid default_model: {default_model_name}"
+                    "error": f"Invalid default_model: {default_input}"
                 }, status=400)
+
+            data["default_model"] = model_obj.id
 
         # ================================
         # VALIDATE SERIALIZER
@@ -87,8 +99,10 @@ def create_template(request):
             cover_file = request.FILES.get("cover_image")
 
             if cover_file:
-                cover_path = f"templates/{template.id}/cover"
-                template.cover_image = upload_file(cover_file, cover_path)
+                template.cover_image = upload_file(
+                    cover_file,
+                    f"templates/{template.id}/cover"
+                )
 
             # ================================
             # UPLOAD PREVIEW MEDIA
@@ -96,10 +110,8 @@ def create_template(request):
             preview_files = request.FILES.getlist("preview_media")
 
             if preview_files:
-                preview_path = f"templates/{template.id}/previews"
-
                 template.preview_media = [
-                    upload_file(file, preview_path)
+                    upload_file(file, f"templates/{template.id}/previews")
                     for file in preview_files
                 ]
 
