@@ -101,7 +101,7 @@ def get_feature_settings(feature):
             "advanced": {}
         }
 
-        qs = feature.settings.all().order_by("display_order")
+        qs = feature.settings.all()
 
         for s in qs:
             settings[s.mode][s.key] = s.options
@@ -113,7 +113,7 @@ def get_feature_settings(feature):
     # ============================
     settings = {}
 
-    qs = feature.settings.all().order_by("display_order")
+    qs = feature.settings.all()
 
     for s in qs:
         settings[s.key] = s.options
@@ -129,7 +129,7 @@ def list_features(request):
 
     queryset = Features.objects.filter(
         is_active=True
-    ).order_by("display_order")
+    )
 
     data = []
 
