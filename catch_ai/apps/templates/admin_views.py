@@ -26,10 +26,48 @@ def create_template(request):
         data = request.data.copy()
 
         # ================================
-        # REMOVE FILE FIELDS (IMPORTANT)
+        # REMOVE FILE FIELDS
         # ================================
         data.pop("cover_image", None)
         data.pop("preview_media", None)
+
+        # ================================
+        # CONVERT model_name → id 🔥
+        # ================================
+        allowed_model_names = request.data.getlist("allowed_models")
+        default_model_name = request.data.get("default_model")
+
+        if allowed_model_names:
+            models_qs = AIModel.objects.filter(
+                model_name__in=allowed_model_names,
+                is_active=True
+            )
+
+            model_map = {m.model_name: m for m in models_qs}
+
+            # check missing
+            missing = set(allowed_model_names) - set(model_map.keys())
+            if missing:
+                return Response({
+                    "error": f"Invalid allowed_models: {list(missing)}"
+                }, status=400)
+
+            data.setlist(
+                "allowed_models",
+                [model_map[name].id for name in allowed_model_names]
+            )
+
+        if default_model_name:
+            try:
+                model_obj = AIModel.objects.get(
+                    model_name=default_model_name,
+                    is_active=True
+                )
+                data["default_model"] = model_obj.id
+            except AIModel.DoesNotExist:
+                return Response({
+                    "error": f"Invalid default_model: {default_model_name}"
+                }, status=400)
 
         # ================================
         # VALIDATE SERIALIZER
@@ -65,9 +103,6 @@ def create_template(request):
                     for file in preview_files
                 ]
 
-            # ================================
-            # FINAL SAVE
-            # ================================
             template.save()
 
         return Response({
