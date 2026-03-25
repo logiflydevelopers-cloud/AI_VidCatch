@@ -50,7 +50,9 @@ class AdminTemplateSerializer(serializers.ModelSerializer):
         allow_null=True
     )
 
-    # 🔥 IMPORTANT: ignore file validation (handled in view)
+    input_schema = serializers.JSONField(required=False)
+    default_settings = serializers.JSONField(required=False)
+
     cover_image = serializers.CharField(required=False, allow_null=True)
     preview_media = serializers.ListField(
         child=serializers.CharField(),
@@ -77,18 +79,16 @@ class AdminTemplateSerializer(serializers.ModelSerializer):
         default_model = data.get("default_model")
         feature_type = data.get("feature_type")
 
-        # ✅ default_model must be inside allowed_models
         if default_model:
             if allowed_models and default_model not in allowed_models:
-                raise serializers.ValidationError(
-                    {"default_model": "Must be included in allowed_models"}
-                )
+                raise serializers.ValidationError({
+                    "default_model": "Must be included in allowed_models"
+                })
 
-            # ✅ feature_type match
             if feature_type and default_model.feature_type != feature_type:
-                raise serializers.ValidationError(
-                    {"default_model": "Model feature_type must match template feature_type"}
-                )
+                raise serializers.ValidationError({
+                    "default_model": "Model feature_type must match template feature_type"
+                })
 
         return data
 
@@ -113,7 +113,6 @@ class AdminTemplateSerializer(serializers.ModelSerializer):
 
         allowed_models = validated_data.pop("allowed_models", None)
 
-        # update fields safely
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 

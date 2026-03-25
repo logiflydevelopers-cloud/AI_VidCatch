@@ -26,33 +26,10 @@ def create_template(request):
         data = request.data.copy()
 
         # ================================
-        # REMOVE FILE FIELDS (IMPORTANT 🔥)
+        # REMOVE FILE FIELDS (IMPORTANT)
         # ================================
         data.pop("cover_image", None)
         data.pop("preview_media", None)
-
-        # ================================
-        # FIX JSON FIELDS (FINAL FIX 🔥)
-        # ================================
-        try:
-            input_schema_raw = request.data.get("input_schema")
-            if input_schema_raw:
-                if isinstance(input_schema_raw, str):
-                    data["input_schema"] = json.loads(input_schema_raw)
-                else:
-                    data["input_schema"] = input_schema_raw
-
-            default_settings_raw = request.data.get("default_settings")
-            if default_settings_raw:
-                if isinstance(default_settings_raw, str):
-                    data["default_settings"] = json.loads(default_settings_raw)
-                else:
-                    data["default_settings"] = default_settings_raw
-
-        except Exception:
-            return Response({
-                "error": "Invalid JSON format in input_schema or default_settings"
-            }, status=status.HTTP_400_BAD_REQUEST)
 
         # ================================
         # VALIDATE SERIALIZER
@@ -83,12 +60,10 @@ def create_template(request):
             if preview_files:
                 preview_path = f"templates/{template.id}/previews"
 
-                preview_urls = [
+                template.preview_media = [
                     upload_file(file, preview_path)
                     for file in preview_files
                 ]
-
-                template.preview_media = preview_urls
 
             # ================================
             # FINAL SAVE
