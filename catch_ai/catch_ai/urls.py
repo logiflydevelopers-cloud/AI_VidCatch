@@ -30,16 +30,23 @@ def home(request):
 
 urlpatterns = [
     path("", home),
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('admin/', admin.site.urls),
-    path('api/users/', include("apps.users.urls")),
+
+    # Auth
+    path("api/token/", TokenObtainPairView.as_view()),
+    path("api/token/refresh/", TokenRefreshView.as_view()),
+
+    # Django Admin
+    path("admin/", admin.site.urls),
+
+    # User APIs
+    path("api/users/", include("apps.users.urls")),
     path("api/templates/", include("apps.templates.urls")),
-    path("api/admin/", include("apps.templates.admin_urls")),
     path("api/generations/", include("apps.generations.urls")),
     path("api/features/", include("apps.features.urls")),
-    path("api/sunscriptions/", include("apps.subscriptions.urls"))
+    path("api/subscriptions/", include("apps.subscriptions.urls")),
 
+    # Admin APIs (Separated properly)
+    path("api/admin/", include("apps.templates.admin_urls"))
 ]
 
 urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

@@ -7,12 +7,17 @@ from .admin_views import (
     update_ai_model,
     get_templates
 )
+from apps.features.admin_views import list_features, get_feature, update_feature
 
 urlpatterns = [
     path("templates/", create_template),
     path("templates/list/", get_templates, name="get_templates"),
     path("ai-models/", get_ai_models),
+    path("features/", list_features),
     path("templates/<str:template_id>/", update_template),
     path("templates/<str:template_id>/delete/", delete_template),
     path("ai-models/<str:model_id>/", update_ai_model),
+    path("features/<str:feature_id>/", get_feature),
+    path("features/<str:feature_id>/update/", update_feature),
 ]
+
