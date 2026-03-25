@@ -11,8 +11,8 @@ from django.db import transaction
 import json
 from django.db.models import Q
 
-
 from apps.services.firebase_storage import upload_file
+from rest_framework.pagination import PageNumberPagination
 
 
 # ================================
@@ -167,63 +167,6 @@ def delete_template(request, template_id):
         status=status.HTTP_204_NO_CONTENT
     )
 
-
-# # ================================
-# # UPLOAD TEMPLATE COVER IMAGE
-# # ================================
-# @api_view(["POST"])
-# @permission_classes([IsAdmin])
-# def upload_template_cover(request, template_id):
-
-#     template = get_object_or_404(Template, id=template_id)
-
-#     file = request.FILES.get("file")
-
-#     if not file:
-#         return Response(
-#             {"error": "File is required"},
-#             status=status.HTTP_400_BAD_REQUEST
-#         )
-
-#     # Firebase path
-#     path = f"templates/{template_id}/cover"
-
-#     url = upload_file(file, path)
-
-#     # save url in template
-#     template.cover_image = url
-#     template.save()
-
-#     return Response({
-#         "cover_image": url
-#     })
-
-
-# # ================================
-# # UPLOAD TEMPLATE PREVIEW MEDIA
-# # ================================
-# @api_view(["POST"])
-# @permission_classes([IsAdmin])
-# def upload_template_preview(request, template_id):
-
-#     template = get_object_or_404(Template, id=template_id)
-
-#     file = request.FILES.get("file")
-
-#     if not file:
-#         return Response(
-#             {"error": "File is required"},
-#             status=status.HTTP_400_BAD_REQUEST
-#         )
-
-#     path = f"templates/{template_id}/previews"
-
-#     url = upload_file(file, path)
-
-#     return Response({
-#         "preview_url": url
-#     })
-
 # ================================
 # GET AI MODELS (ADMIN)
 # ================================
@@ -265,3 +208,60 @@ def update_ai_model(request, model_id):
         })
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+# ================================
+# PAGINATION CLASS
+# ================================
+class TemplatePagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 50
+
+
+# ================================
+# GET ALL TEMPLATES
+# ================================
+@api_view(["GET"])
+def get_templates(request):
+
+    try:
+        queryset = Template.objects.all().order_by("-created_at")
+
+        # ================================
+        # FILTERS (OPTIONAL)
+        # ================================
+        category = request.GET.get("category")
+        feature_type = request.GET.get("feature_type")
+        is_active = request.GET.get("is_active")
+
+        if category:
+            queryset = queryset.filter(category=category)
+
+        if feature_type:
+            queryset = queryset.filter(feature_type=feature_type)
+
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active.lower() == "true")
+
+        # ================================
+        # OPTIMIZATION
+        # ================================
+        queryset = queryset.select_related("default_model").prefetch_related("allowed_models")
+
+        # ================================
+        # PAGINATION
+        # ================================
+        paginator = TemplatePagination()
+        paginated_qs = paginator.paginate_queryset(queryset, request)
+
+        serializer = AdminTemplateSerializer(paginated_qs, many=True)
+
+        return paginator.get_paginated_response({
+            "count": queryset.count(),
+            "results": serializer.data
+        })
+
+    except Exception as e:
+        return Response({
+            "error": str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
