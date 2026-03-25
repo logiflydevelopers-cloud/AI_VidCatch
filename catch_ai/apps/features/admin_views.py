@@ -59,8 +59,6 @@ def get_feature(request, feature_id):
 
         "is_active": f.is_active,
         "is_premium": f.is_premium,
-
-        "input_schema": f.input_schema,
         "credits_config": f.credits_config,
     })
 
