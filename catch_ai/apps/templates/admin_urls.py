@@ -8,6 +8,7 @@ from .admin_views import (
     get_templates
 )
 from apps.features.admin_views import list_features, get_feature, update_feature
+from apps.dashboard.views import dashboard
 
 urlpatterns = [
     path("templates/", create_template),
@@ -19,5 +20,6 @@ urlpatterns = [
     path("ai-models/<str:model_id>/", update_ai_model),
     path("features/<str:feature_id>/", get_feature),
     path("features/<str:feature_id>/update/", update_feature),
+    path("dashboard/", dashboard, name="get-dasboard-data")
 ]
 
