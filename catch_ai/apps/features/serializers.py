@@ -30,7 +30,6 @@ class FeatureSerializer(serializers.ModelSerializer):
             "is_premium",
             "models",
             "default_model",
-            "input_schema",
             "default_settings",
         ]
 
