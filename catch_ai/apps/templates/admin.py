@@ -318,6 +318,7 @@ class FeatureAdminForm(forms.ModelForm):
 class FeatureSettingInline(admin.TabularInline):
     model = FeatureSetting
     extra = 1
+    ordering = ("mode", "display_order")
 
     fields = (
         "mode",
@@ -325,7 +326,8 @@ class FeatureSettingInline(admin.TabularInline):
         "type",
         "options",
         "default_value",
-        "is_required"
+        "is_required",
+        "display_order",
     )
 
 # ==========================================================
@@ -364,10 +366,12 @@ class FeaturesAdmin(admin.ModelAdmin):
         "advanced_credit_cost",
         "is_premium",
         "is_active",
+        "display_order",
         "created_at",
     )
 
     filter_horizontal = ("allowed_models",)
+    ordering = ("display_order",)
 
     def get_readonly_fields(self, request, obj=None):
         if obj:

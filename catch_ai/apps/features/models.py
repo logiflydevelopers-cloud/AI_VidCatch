@@ -45,6 +45,11 @@ class Features(models.Model):
     )
 
     # ============================
+    # INPUT SCHEMA
+    # ============================
+    input_schema = models.JSONField(blank=True, null=True)
+
+    # ============================
     # MODEL MAPPING (fast → modelA)
     # ============================
     model_mapping = models.JSONField(blank=True, null=True)
@@ -52,6 +57,8 @@ class Features(models.Model):
     # ============================
     # UI / CONTROL
     # ============================
+    display_order = models.IntegerField(default=0)
+
     is_premium = models.BooleanField(default=False)
 
     is_active = models.BooleanField(default=True)

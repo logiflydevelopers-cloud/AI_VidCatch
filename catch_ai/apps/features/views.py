@@ -101,7 +101,7 @@ def get_feature_settings(feature):
             "advanced": {}
         }
 
-        qs = feature.settings.all()
+        qs = feature.settings.all().order_by("display_order")
 
         for s in qs:
             settings[s.mode][s.key] = s.options
@@ -113,7 +113,7 @@ def get_feature_settings(feature):
     # ============================
     settings = {}
 
-    qs = feature.settings.all()
+    qs = feature.settings.all().order_by("display_order")
 
     for s in qs:
         settings[s.key] = s.options
@@ -129,7 +129,7 @@ def list_features(request):
 
     queryset = Features.objects.filter(
         is_active=True
-    )
+    ).order_by("display_order")
 
     data = []
 
@@ -146,6 +146,8 @@ def list_features(request):
                 "id": f.default_model.id,
                 "name": f.default_model.name
             } if f.default_model and f.default_model.is_active else None,
+
+            "input_schema": f.input_schema,
             "settings": get_feature_settings(f),
         })
 
@@ -172,5 +174,7 @@ def get_feature(request, feature_id):
             "id": feature.default_model.id,
             "name": feature.default_model.name
         } if feature.default_model and feature.default_model.is_active else None,
+
+        "input_schema": feature.input_schema,
         "settings": get_feature_settings(feature),
     })
