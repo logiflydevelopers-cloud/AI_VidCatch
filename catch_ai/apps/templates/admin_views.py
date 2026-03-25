@@ -17,14 +17,45 @@ from apps.services.firebase_storage import upload_file
 @permission_classes([IsAdmin])
 def create_template(request):
 
+    # Step 1: Create template (without files first)
     serializer = AdminTemplateSerializer(data=request.data)
 
-    if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    template = serializer.save()
 
+    # Step 2: Upload Cover Image
+    cover_file = request.FILES.get("cover_image")
+
+    if cover_file:
+        cover_path = f"templates/{template.id}/cover"
+        cover_url = upload_file(cover_file, cover_path)
+        template.cover_image = cover_url
+
+    # Step 3: Upload Preview Media (Multiple)
+    preview_files = request.FILES.getlist("preview_media")
+
+    preview_urls = []
+
+    if preview_files:
+        preview_path = f"templates/{template.id}/previews"
+
+        for file in preview_files:
+            url = upload_file(file, preview_path)
+            preview_urls.append(url)
+
+    # If your model has JSONField / ArrayField
+    if preview_urls:
+        template.preview_media = preview_urls
+
+    # Step 4: Save everything
+    template.save()
+
+    return Response({
+        "message": "Template created successfully",
+        "data": AdminTemplateSerializer(template).data
+    }, status=status.HTTP_201_CREATED)
 
 # ================================
 # UPDATE TEMPLATE
