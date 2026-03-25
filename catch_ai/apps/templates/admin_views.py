@@ -3,8 +3,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 
-from .models import Template
-from .serializers import AdminTemplateSerializer
+from .models import Template, AIModel
+from .serializers import AdminTemplateSerializer, AIModelSerializer
 from .permissions import IsAdmin
 from django.db import transaction
 import json
@@ -16,8 +16,6 @@ from apps.services.firebase_storage import upload_file
 # ================================
 # CREATE TEMPLATE
 # ================================
-@api_view(["POST"])
-@permission_classes([IsAdmin])
 @api_view(["POST"])
 @permission_classes([IsAdmin])
 def create_template(request):
@@ -126,58 +124,98 @@ def delete_template(request, template_id):
     )
 
 
+# # ================================
+# # UPLOAD TEMPLATE COVER IMAGE
+# # ================================
+# @api_view(["POST"])
+# @permission_classes([IsAdmin])
+# def upload_template_cover(request, template_id):
+
+#     template = get_object_or_404(Template, id=template_id)
+
+#     file = request.FILES.get("file")
+
+#     if not file:
+#         return Response(
+#             {"error": "File is required"},
+#             status=status.HTTP_400_BAD_REQUEST
+#         )
+
+#     # Firebase path
+#     path = f"templates/{template_id}/cover"
+
+#     url = upload_file(file, path)
+
+#     # save url in template
+#     template.cover_image = url
+#     template.save()
+
+#     return Response({
+#         "cover_image": url
+#     })
+
+
+# # ================================
+# # UPLOAD TEMPLATE PREVIEW MEDIA
+# # ================================
+# @api_view(["POST"])
+# @permission_classes([IsAdmin])
+# def upload_template_preview(request, template_id):
+
+#     template = get_object_or_404(Template, id=template_id)
+
+#     file = request.FILES.get("file")
+
+#     if not file:
+#         return Response(
+#             {"error": "File is required"},
+#             status=status.HTTP_400_BAD_REQUEST
+#         )
+
+#     path = f"templates/{template_id}/previews"
+
+#     url = upload_file(file, path)
+
+#     return Response({
+#         "preview_url": url
+#     })
+
 # ================================
-# UPLOAD TEMPLATE COVER IMAGE
+# GET AI MODELS (ADMIN)
 # ================================
-@api_view(["POST"])
+@api_view(["GET"])
 @permission_classes([IsAdmin])
-def upload_template_cover(request, template_id):
+def get_ai_models(request):
 
-    template = get_object_or_404(Template, id=template_id)
+    models = AIModel.objects.all().order_by("-created_at")
 
-    file = request.FILES.get("file")
-
-    if not file:
-        return Response(
-            {"error": "File is required"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-    # Firebase path
-    path = f"templates/{template_id}/cover"
-
-    url = upload_file(file, path)
-
-    # save url in template
-    template.cover_image = url
-    template.save()
+    serializer = AIModelSerializer(models, many=True)
 
     return Response({
-        "cover_image": url
+        "count": models.count(),
+        "data": serializer.data
     })
 
-
 # ================================
-# UPLOAD TEMPLATE PREVIEW MEDIA
+# UPDATE AI MODEL
 # ================================
-@api_view(["POST"])
+@api_view(["PUT", "PATCH"])
 @permission_classes([IsAdmin])
-def upload_template_preview(request, template_id):
+def update_ai_model(request, model_id):
 
-    template = get_object_or_404(Template, id=template_id)
+    model = get_object_or_404(AIModel, id=model_id)
 
-    file = request.FILES.get("file")
+    serializer = AIModelSerializer(
+        model,
+        data=request.data,
+        partial=True
+    )
 
-    if not file:
-        return Response(
-            {"error": "File is required"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+    if serializer.is_valid():
+        serializer.save()
+        return Response({
+            "message": "AI Model updated",
+            "data": serializer.data
+        })
 
-    path = f"templates/{template_id}/previews"
-
-    url = upload_file(file, path)
-
-    return Response({
-        "preview_url": url
-    })
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

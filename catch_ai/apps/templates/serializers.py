@@ -1,6 +1,20 @@
 from rest_framework import serializers
 from .models import Template, AIModel
 
+# AI MODEL SERIALIZER
+class AIModelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AIModel
+        fields = [
+            "id",
+            "name",
+            "feature_type",
+            "provider",
+            "credit_cost",
+            "is_active"
+        ]
+
+
 
 # USER SERIALIZER
 class TemplateSerializer(serializers.ModelSerializer):

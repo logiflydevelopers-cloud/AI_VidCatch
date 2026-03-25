@@ -4,7 +4,9 @@ from .admin_views import (
     update_template,
     delete_template,
     # upload_template_cover,
-    # upload_template_preview
+    # upload_template_preview,
+    get_ai_models,
+    update_ai_model
 )
 
 urlpatterns = [
@@ -13,4 +15,6 @@ urlpatterns = [
     path("<str:template_id>/delete/", delete_template),
     # path("<str:template_id>/upload/template_cover/", upload_template_cover),
     # path("<str:template_id>/upload/template_preview/", upload_template_preview),
+    path("ai-models/", get_ai_models),
+    path("ai-models/<str:model_id>/", update_ai_model),
 ]
