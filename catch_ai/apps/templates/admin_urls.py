@@ -9,6 +9,7 @@ from .admin_views import (
 )
 from apps.features.admin_views import list_features, get_feature, update_feature
 from apps.dashboard.views import dashboard
+from apps.users.admin_views import delete_user
 
 urlpatterns = [
     path("templates/", create_template),
@@ -20,6 +21,6 @@ urlpatterns = [
     path("ai-models/<str:model_id>/", update_ai_model),
     path("features/<str:feature_id>/", get_feature),
     path("features/<str:feature_id>/update/", update_feature),
-    path("dashboard/", dashboard, name="get-dasboard-data")
+    path("dashboard/", dashboard),
+    path("users/<str:user_id>/", delete_user),
 ]
-
