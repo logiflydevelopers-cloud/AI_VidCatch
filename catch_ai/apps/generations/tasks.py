@@ -12,6 +12,7 @@ from .models import Generation
 from apps.services.firebase_storage import upload_generated_file
 from apps.credits.models import UserCredits, CreditTransaction
 from apps.features.utils import calculate_feature_cost
+from celery.exceptions import MaxRetriesExceededError
 
 
 FASTAPI_GENERATE_URL = settings.FASTAPI_GENERATE_URL
@@ -194,16 +195,27 @@ def run_generation(self, generation_id, payload):
 
         try:
             if isinstance(exc, requests.exceptions.RequestException):
-                raise self.retry(exc=exc)
+
+                # 🔥 If retries left → retry
+                if self.request.retries < self.max_retries:
+                    raise self.retry(exc=exc)
+
+                # ❌ If max retries reached → mark FAILED
+                generation.status = "failed"
+                generation.error_message = f"Max retries reached: {str(exc)}"
+                generation.completed_at = timezone.now()
+                generation.save()
 
             else:
+                # ❌ Non-network error → FAIL immediately
                 generation.status = "failed"
                 generation.error_message = str(exc)
                 generation.completed_at = timezone.now()
                 generation.save()
 
-        except self.MaxRetriesExceededError:
+        except MaxRetriesExceededError:
+            # 🔥 FINAL fallback
             generation.status = "failed"
-            generation.error_message = str(exc)
+            generation.error_message = f"Retries exhausted: {str(exc)}"
             generation.completed_at = timezone.now()
             generation.save()

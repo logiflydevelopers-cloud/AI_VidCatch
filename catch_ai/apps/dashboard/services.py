@@ -1,7 +1,4 @@
-from django.db.models import Count, Sum, F
-from django.utils.timezone import now
-from datetime import timedelta
-
+from django.db.models import Count, Sum, Q
 from apps.users.models import User
 from apps.subscriptions.models import UserSubscription
 from apps.generations.models import Generation
@@ -11,36 +8,43 @@ from apps.credits.models import CreditTransaction
 
 def get_dashboard_data():
 
-    today = now().date()
-    last_7_days = today - timedelta(days=7)
-
     # ==========================================================
-    # USERS & SUBSCRIPTIONS
+    # USERS & SUBSCRIPTIONS (NO FILTERS)
     # ==========================================================
-    total_users = User.objects.filter(is_staff=False).count()
-    total_active_users = User.objects.filter(is_active=True, is_staff=False).count()
-
-    active_subscriptions = UserSubscription.objects.filter(
-        status="active"
+    total_users = User.objects.filter(
+        is_staff=False
     ).count()
 
+    total_active_users = User.objects.filter(
+        is_active=True, is_staff=False
+    ).count()
+
+    total_staff_users = User.objects.filter(
+        is_staff=True
+    ).count()
+
+    total_subscriptions = UserSubscription.objects.count()
+
     # ==========================================================
-    # GENERATIONS
+    # GENERATIONS (ALL DATA)
     # ==========================================================
     total_generations = Generation.objects.count()
 
-    today_generations = Generation.objects.filter(
-        created_at__date=today
-    ).count()
+    # Group by DATE (no restriction)
+    all_generations_by_date = Generation.objects.values(
+        "created_at__date"
+    ).annotate(
+        total=Count("id"),
 
-    last_7_days_generations = Generation.objects.filter(
-        created_at__date__gte=last_7_days
-    ).values("created_at__date").annotate(
-        count=Count("id")
+        completed=Count("id", filter=Q(status="completed")),
+        failed=Count("id", filter=Q(status="failed")),
+        pending=Count("id", filter=Q(status="pending")),
+        processing=Count("id", filter=Q(status="processing"))
+
     ).order_by("created_at__date")
 
     # ==========================================================
-    # MOST USED TEMPLATES
+    # MOST USED TEMPLATES (ALL TIME)
     # ==========================================================
     most_used_templates = Generation.objects.filter(
         template__isnull=False
@@ -49,49 +53,46 @@ def get_dashboard_data():
         "template__name"
     ).annotate(
         usage=Count("id")
-    ).order_by("-usage")[:5]
+    ).order_by("-usage")
 
     # ==========================================================
-    # MODEL USAGE
+    # MODEL USAGE (RAW)
     # ==========================================================
     model_usage = AIModel.objects.values(
         "model_name",
-        "name"
-    ).annotate(
-        total_usage=F("total_usage_count"),
-        total_credits=F("total_credits_used")
-    ).order_by("-total_usage")
+        "name",
+        "total_usage_count",
+        "total_credits_used"
+    ).order_by("-total_usage_count")
 
     # ==========================================================
-    # CREDIT USAGE
+    # CREDIT TRANSACTIONS (RAW SPLIT)
     # ==========================================================
-    total_credits_used = CreditTransaction.objects.filter(
-        transaction_type="deduct"
-    ).aggregate(
+    credits_summary = CreditTransaction.objects.values(
+        "transaction_type"
+    ).annotate(
         total=Sum("amount")
-    )["total"] or 0
+    )
 
     # ==========================================================
     # FINAL RESPONSE
     # ==========================================================
-    return{
+    return {
         "users": {
             "total_users": total_users,
             "total_active_users": total_active_users,
-            "active_subscriptions": active_subscriptions
+            "total_staff_users": total_staff_users,
+            "total_subscriptions": total_subscriptions
         },
 
         "generations": {
             "total": total_generations,
-            "today": today_generations,
-            "last_7_days": list(last_7_days_generations)
+            "by_date": list(all_generations_by_date)
         },
 
-        "templates": list(most_used_templates),
+        "most_used_templates": list(most_used_templates),
 
         "models": list(model_usage),
 
-        "credits": {
-            "total_used": total_credits_used
-        }
+        "credits": list(credits_summary),
     }
