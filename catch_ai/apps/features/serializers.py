@@ -191,6 +191,9 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         model_mapping = validated_data.pop("model_mapping", None)
 
+        # 👇 handle many-to-many separately
+        allowed_models = validated_data.pop("allowed_models", None)
+
         # remove extra fields
         validated_data.pop("fast_model", None)
         validated_data.pop("standard_model", None)
@@ -198,12 +201,16 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
         validated_data.pop("bw_color_model", None)
         validated_data.pop("recolor_model", None)
 
-        # update main fields
+        # update normal fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
-        # set mapping
+        # save first
         instance.model_mapping = model_mapping
-
         instance.save()
+
+        # 👇 NOW set many-to-many
+        if allowed_models is not None:
+            instance.allowed_models.set(allowed_models)
+
         return instance
