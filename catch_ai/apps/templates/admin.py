@@ -340,21 +340,37 @@ class FeaturesAdmin(admin.ModelAdmin):
     inlines = [FeatureSettingInline]
 
     def get_fields(self, request, obj=None):
-        fields = list(super().get_fields(request, obj))
+        base_fields = [
+            "id",
+            "name",
+            "feature_type",
+            "is_multi_mode",
+            "credit_cost",
+            "fast_credit_cost",
+            "standard_credit_cost",
+            "advanced_credit_cost",
+            "credits_config",
+            "allowed_models",
+            "default_model",
+            "is_premium",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
 
-        # remove if already present
-        for f in ["fast_model", "standard_model", "advanced_model"]:
-            if f in fields:
-                fields.remove(f)
-
-        # show only if multi-mode
+        # -----------------------------
+        # MULTI MODE
+        # -----------------------------
         if obj and obj.is_multi_mode:
-            fields += ["fast_model", "standard_model", "advanced_model"]
+            base_fields += ["fast_model", "standard_model", "advanced_model"]
 
-        if "model_mapping" in fields:
-            fields.remove("model_mapping")
+        # -----------------------------
+        # COLORIZE MODE
+        # -----------------------------
+        if obj and obj.feature_type == "colorize":
+            base_fields += ["bw_color_model", "recolor_model"]
 
-        return fields
+        return base_fields
 
     list_display = (
         "id",
