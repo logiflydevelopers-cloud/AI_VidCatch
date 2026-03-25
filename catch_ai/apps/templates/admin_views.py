@@ -1,4 +1,5 @@
 from rest_framework.decorators import api_view, permission_classes
+from django.views.decorators.csrf import csrf_exempt
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
@@ -16,6 +17,7 @@ from apps.services.firebase_storage import upload_file
 # ================================
 # CREATE TEMPLATE
 # ================================
+@csrf_exempt
 @api_view(["POST"])
 @permission_classes([IsAdmin])
 def create_template(request):
@@ -88,6 +90,7 @@ def create_template(request):
 # ================================
 # UPDATE TEMPLATE
 # ================================
+@csrf_exempt
 @api_view(["PUT"])
 @permission_classes([IsAdmin])
 def update_template(request, template_id):
@@ -110,6 +113,7 @@ def update_template(request, template_id):
 # ================================
 # DELETE TEMPLATE
 # ================================
+@csrf_exempt
 @api_view(["DELETE"])
 @permission_classes([IsAdmin])
 def delete_template(request, template_id):
@@ -183,6 +187,7 @@ def delete_template(request, template_id):
 # ================================
 # GET AI MODELS (ADMIN)
 # ================================
+@csrf_exempt
 @api_view(["GET"])
 @permission_classes([IsAdmin])
 def get_ai_models(request):
@@ -199,6 +204,7 @@ def get_ai_models(request):
 # ================================
 # UPDATE AI MODEL
 # ================================
+@csrf_exempt
 @api_view(["PUT", "PATCH"])
 @permission_classes([IsAdmin])
 def update_ai_model(request, model_id):
