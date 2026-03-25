@@ -32,17 +32,26 @@ def create_template(request):
         data.pop("preview_media", None)
 
         # ================================
-        # FIX JSON FIELDS
+        # FIX JSON FIELDS (FINAL FIX 🔥)
         # ================================
         try:
-            if "input_schema" in request.data:
-                data["input_schema"] = json.loads(request.data.get("input_schema"))
+            input_schema_raw = request.data.get("input_schema")
+            if input_schema_raw:
+                if isinstance(input_schema_raw, str):
+                    data["input_schema"] = json.loads(input_schema_raw)
+                else:
+                    data["input_schema"] = input_schema_raw
 
-            if "default_settings" in request.data:
-                data["default_settings"] = json.loads(request.data.get("default_settings"))
-        except json.JSONDecodeError:
+            default_settings_raw = request.data.get("default_settings")
+            if default_settings_raw:
+                if isinstance(default_settings_raw, str):
+                    data["default_settings"] = json.loads(default_settings_raw)
+                else:
+                    data["default_settings"] = default_settings_raw
+
+        except Exception:
             return Response({
-                "error": "Invalid JSON in input_schema or default_settings"
+                "error": "Invalid JSON format in input_schema or default_settings"
             }, status=status.HTTP_400_BAD_REQUEST)
 
         # ================================
