@@ -37,7 +37,7 @@ class Plan(models.Model):
 
     credits_per_month = models.IntegerField(default=0)
 
-    price = models.DecimalField(max_digits=10, decimal_places=2)
+    price_inr = models.DecimalField(max_digits=10, decimal_places=2)
 
     daily_limit = models.IntegerField(null=True, blank=True)
 
@@ -55,6 +55,11 @@ class Plan(models.Model):
     # SAVE (ONLY IF NOT USING FIREBASE ID)
     # ============================
     def save(self, *args, **kwargs):
+
+        # Generate ID if not exists
+        if not self.id:
+            self.id = generate_plan_id()
+
         super().save(*args, **kwargs)
 
     def __str__(self):

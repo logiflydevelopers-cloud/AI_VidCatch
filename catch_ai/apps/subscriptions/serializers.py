@@ -9,7 +9,7 @@ class PlanSerializer(serializers.ModelSerializer):
             "id",
             "name",
             "credits_per_month",
-            "price",
+            "price_inr",
             "daily_limit",
             "features",
             "validity_days",
