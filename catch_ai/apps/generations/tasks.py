@@ -5,13 +5,11 @@ from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import F
 
 from apps.features.models import Features
 from .models import Generation
 from apps.services.firebase_storage import upload_generated_file
-from apps.credits.models import UserCredits, CreditTransaction
-from apps.features.utils import calculate_feature_cost
+from apps.credits.services import deduct_credits, add_credits
 from celery.exceptions import MaxRetriesExceededError
 
 
@@ -35,27 +33,19 @@ def run_generation(self, generation_id, payload):
 
     try:
         # ============================
-        # COST + MODEL
+        # COST CALCULATION
         # ============================
         if generation.feature:
-
-            options = payload.get("settings", {})
-
-            # DO NOT use quality in worker
-            # cost already calculated in view
-
             cost = generation.credit_used
-
         elif generation.template:
             cost = generation.template.credit_cost
-
         else:
             cost = 1
 
         if cost <= 0:
             raise Exception("Invalid credit cost")
 
-        # Save cost only once
+        # Save cost once
         if not generation.credit_used:
             generation.credit_used = cost
 
@@ -64,45 +54,20 @@ def run_generation(self, generation_id, payload):
         generation.save(update_fields=["credit_used", "status", "started_at"])
 
         # ============================
-        # CREDIT DEDUCTION
+        # CREDIT DEDUCTION (FIXED ✅)
         # ============================
         if not generation.is_credits_deducted:
 
-            with transaction.atomic():
-                wallet = UserCredits.objects.select_for_update().get(
-                    user=generation.user
-                )
+            deduct_credits(
+                user=generation.user,
+                amount=cost,
+                description=f"Generation ({generation.source_type})",
+                template=generation.template,
+                feature=generation.feature
+            )
 
-                available_credits = wallet.total_credits - wallet.used_credits
-
-                if available_credits < cost:
-                    raise Exception(
-                        f"Not enough credits. Required: {cost}, Available: {available_credits}"
-                    )
-
-                before = available_credits
-
-                UserCredits.objects.filter(id=wallet.id).update(
-                    used_credits=F("used_credits") + cost
-                )
-
-                wallet.refresh_from_db()
-
-                after = wallet.total_credits - wallet.used_credits
-
-                CreditTransaction.objects.create(
-                    user=generation.user,
-                    template=generation.template,
-                    feature=generation.feature,
-                    amount=cost,
-                    transaction_type="deduct",
-                    balance_before=before,
-                    balance_after=after,
-                    description=f"Generation ({generation.source_type})"
-                )
-
-                generation.is_credits_deducted = True
-                generation.save(update_fields=["is_credits_deducted"])
+            generation.is_credits_deducted = True
+            generation.save(update_fields=["is_credits_deducted"])
 
         # ============================
         # CALL FASTAPI
@@ -152,7 +117,7 @@ def run_generation(self, generation_id, payload):
         traceback.print_exc()
 
         # ============================
-        # SAFE REFUND
+        # SAFE REFUND (FIXED ✅)
         # ============================
         try:
             if (
@@ -160,61 +125,42 @@ def run_generation(self, generation_id, payload):
                 and generation.is_credits_deducted
                 and not generation.is_refunded
             ):
-                with transaction.atomic():
-                    wallet = UserCredits.objects.select_for_update().get(
-                        user=generation.user
-                    )
+                add_credits(
+                    user=generation.user,
+                    amount=generation.credit_used,
+                    description=f"Refund for failed generation {generation.id}"
+                )
 
-                    before = wallet.total_credits - wallet.used_credits
-
-                    UserCredits.objects.filter(id=wallet.id).update(
-                        used_credits=F("used_credits") - generation.credit_used
-                    )
-
-                    wallet.refresh_from_db()
-
-                    after = wallet.total_credits - wallet.used_credits
-
-                    CreditTransaction.objects.create(
-                        user=generation.user,
-                        amount=generation.credit_used,
-                        transaction_type="add",
-                        balance_before=before,
-                        balance_after=after,
-                        description=f"Refund for failed generation {generation.id}"
-                    )
-
-                    generation.is_refunded = True
-                    generation.save(update_fields=["is_refunded"])
+                generation.is_refunded = True
+                generation.save(update_fields=["is_refunded"])
 
         except Exception as refund_error:
             print("Refund failed:", refund_error)
 
+        # ============================
+        # RETRY LOGIC
+        # ============================
         generation.retry_count += 1
         generation.save(update_fields=["retry_count"])
 
         try:
             if isinstance(exc, requests.exceptions.RequestException):
 
-                # 🔥 If retries left → retry
                 if self.request.retries < self.max_retries:
                     raise self.retry(exc=exc)
 
-                # ❌ If max retries reached → mark FAILED
                 generation.status = "failed"
                 generation.error_message = f"Max retries reached: {str(exc)}"
                 generation.completed_at = timezone.now()
                 generation.save()
 
             else:
-                # ❌ Non-network error → FAIL immediately
                 generation.status = "failed"
                 generation.error_message = str(exc)
                 generation.completed_at = timezone.now()
                 generation.save()
 
         except MaxRetriesExceededError:
-            # 🔥 FINAL fallback
             generation.status = "failed"
             generation.error_message = f"Retries exhausted: {str(exc)}"
             generation.completed_at = timezone.now()
