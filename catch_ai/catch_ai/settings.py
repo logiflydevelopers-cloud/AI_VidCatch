@@ -18,6 +18,7 @@ import dj_database_url
 import os
 
 from pathlib import Path
+from celery.schedules import crontab
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -33,7 +34,7 @@ SECRET_KEY = 'django-insecure-+doln_)80h6s3&jcow=wh)ljx*#_$j%)c!y*+pcp^wg1iry2%_
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-IAP_SANDBOX_MODE = True
+IAP_SANDBOX_MODE = False
 
 ALLOWED_HOSTS = [ "ai-vidcatch.onrender.com",
                  "localhost",
@@ -52,6 +53,12 @@ STATICFILES_DIRS = [
 
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+CELERY_BEAT_SCHEDULE = {
+    "delete-old-generations-daily": {
+        "task": "apps.generations.tasks.delete_old_generations",
+        "schedule": crontab(hour=0, minute=0),  # every day at midnight
+    },
+}
 
 # Application definition
 

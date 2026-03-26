@@ -5,6 +5,7 @@ from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
+from datetime import timedelta
 
 from apps.features.models import Features
 from .models import Generation
@@ -165,3 +166,14 @@ def run_generation(self, generation_id, payload):
             generation.error_message = f"Retries exhausted: {str(exc)}"
             generation.completed_at = timezone.now()
             generation.save()
+
+
+@shared_task
+def delete_old_generations():
+    cutoff_date = timezone.now() - timedelta(days=7)
+
+    deleted_count, _ = Generation.objects.filter(
+        created_at__lt=cutoff_date
+    ).delete()
+
+    return f"Deleted {deleted_count} old generations"
