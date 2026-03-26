@@ -54,7 +54,7 @@ def run_generation(self, generation_id, payload):
         generation.save(update_fields=["credit_used", "status", "started_at"])
 
         # ============================
-        # CREDIT DEDUCTION (FIXED ✅)
+        # CREDIT DEDUCTION
         # ============================
         if not generation.is_credits_deducted:
 
@@ -117,7 +117,7 @@ def run_generation(self, generation_id, payload):
         traceback.print_exc()
 
         # ============================
-        # SAFE REFUND (FIXED ✅)
+        # SAFE REFUND
         # ============================
         try:
             if (

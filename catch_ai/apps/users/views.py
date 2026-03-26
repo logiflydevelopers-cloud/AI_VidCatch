@@ -17,8 +17,10 @@ from rest_framework.permissions import AllowAny
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
+from apps.credits.models import UserCredits
 
 User = get_user_model()
+
 
 
 def get_tokens_for_user(user):
@@ -103,12 +105,14 @@ def login(request):
 def me(request):
 
     user = request.user
+    user_credits = UserCredits.objects.filter(user=user).first()
 
     return Response({
         "id": user.id,
         "email": user.email,
         "username": user.username,
-        "is_admin": user.is_staff
+        "is_admin": user.is_staff,
+        "credits": user_credits.balance if user_credits else 0
     })
 
 @api_view(["POST"])

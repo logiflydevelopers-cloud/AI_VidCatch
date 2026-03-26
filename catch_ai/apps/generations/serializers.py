@@ -224,3 +224,43 @@ class GenerationSerializer(serializers.ModelSerializer):
 
     def get_processing_time(self, obj):
         return obj.processing_time
+
+
+class GenerationHistorySerializer(serializers.ModelSerializer):
+    name = serializers.SerializerMethodField()
+    thumbnail = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Generation
+        fields = [
+            "job_id",
+            "name",
+            "source_type",
+            "status",
+            "result_url",
+            "result_type",
+            "credit_used",
+            "created_at",
+            "completed_at",
+            "processing_time",
+            "thumbnail",
+        ]
+
+    def get_name(self, obj):
+        # Priority: input_summary > template > feature
+        if obj.input_summary:
+            return obj.input_summary
+
+        if obj.template:
+            return obj.template.name
+
+        if obj.feature:
+            return obj.feature.name
+
+        return "Untitled"
+
+    def get_thumbnail(self, obj):
+        # Optional: frontend preview
+        if obj.result_type == "image":
+            return obj.result_url
+        return None

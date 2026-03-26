@@ -11,7 +11,12 @@ from .models import Generation
 from .serializers import GenerateSerializer, GenerationSerializer
 from .tasks import run_generation
 
+from django.db.models import Q
+
+from .pagination import GenerationPagination   
+
 SPECIAL_FEATURES = ["text_to_video", "image_to_video", "colorize"]
+
 
 # ==========================================================
 # HELPERS
@@ -314,33 +319,52 @@ def get_generation(request, job_id):
 
 
 # ==========================================================
-# USER GENERATION HISTORY
+# USER GENERATION HISTORY (PAGINATED)
 # ==========================================================
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def list_generations(request):
 
-    queryset = Generation.objects.filter(
-        user=request.user
-    ).select_related("template", "feature")
+    queryset = (
+        Generation.objects
+        .filter(user=request.user)
+        .select_related("template", "feature")
+        .order_by("-created_at")
+    )
 
-    # optional filters
+    # ==========================
+    # FILTERS
+    # ==========================
     status = request.GET.get("status")
+    source_type = request.GET.get("type")
+    result_type = request.GET.get("result_type")
+
     if status:
         queryset = queryset.filter(status=status)
 
-    # pagination
-    limit = int(request.GET.get("limit", 20))
-    offset = int(request.GET.get("offset", 0))
+    if source_type:
+        queryset = queryset.filter(source_type=source_type)
 
-    generations = queryset.order_by("-created_at")[offset:offset + limit]
+    if result_type:
+        queryset = queryset.filter(result_type=result_type)
 
-    serializer = GenerationSerializer(
-        generations,
-        many=True
-    )
+    # ==========================
+    # SEARCH
+    # ==========================
+    search = request.GET.get("search")
+    if search:
+        queryset = queryset.filter(
+            Q(input_summary__icontains=search) |
+            Q(template__name__icontains=search) |
+            Q(feature__name__icontains=search)
+        )
 
-    return Response({
-        "count": queryset.count(),
-        "results": serializer.data
-    })
+    # ==========================
+    # PAGINATION (DRF)
+    # ==========================
+    paginator = GenerationPagination()
+    page = paginator.paginate_queryset(queryset, request)
+
+    serializer = GenerationSerializer(page, many=True)
+
+    return paginator.get_paginated_response(serializer.data)
