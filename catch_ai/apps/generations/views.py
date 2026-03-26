@@ -14,7 +14,7 @@ from .tasks import run_generation
 SPECIAL_FEATURES = ["text_to_video", "image_to_video", "colorize"]
 
 # ==========================================================
-# 🔥 HELPERS
+# HELPERS
 # ==========================================================
 def validate_feature_settings(feature, mode, user_settings):
     db_settings = feature.settings.filter(mode=mode)
@@ -68,7 +68,7 @@ def apply_default_settings(feature, mode, user_settings):
 
 
 # ==========================================================
-# 🚀 MAIN API
+# MAIN API
 # ==========================================================
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -189,7 +189,7 @@ def create_generation(request):
                     return Response({"error": str(e)}, status=400)
 
             # ============================
-            # 🔥 NORMAL FEATURE
+            # NORMAL FEATURE
             # ============================
             else:
 
@@ -269,7 +269,7 @@ def create_generation(request):
             )
 
             # ============================
-            # 🔥 TRACK MODEL USAGE
+            # TRACK MODEL USAGE
             # ============================
             model.track_usage()
 

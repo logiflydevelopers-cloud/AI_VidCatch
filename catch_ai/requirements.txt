@@ -19,3 +19,4 @@ firebase-admin
 celery
 redis
 django-json-widget 
+google-api-python-client

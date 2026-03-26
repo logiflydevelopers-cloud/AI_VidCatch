@@ -40,7 +40,7 @@ class UserCredits(models.Model):
         if not self.id:
             self.id = f"crdt_{uuid.uuid4().hex[:8].upper()}"
 
-        # 🔒 Prevent manual tampering of used_credits
+        # Prevent manual tampering of used_credits
         if self.pk and not allow_used_update:
             try:
                 old = UserCredits.objects.get(pk=self.pk)

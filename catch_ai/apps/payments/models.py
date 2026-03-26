@@ -4,7 +4,6 @@ from django.contrib.auth import get_user_model
 
 User = get_user_model()
 
-
 # ==========================================================
 # PAYMENT MODEL
 # ==========================================================
@@ -21,6 +20,7 @@ class Payment(models.Model):
         ("stripe", "Stripe"),
         ("razorpay", "Razorpay"),
         ("paypal", "PayPal"),
+        ("google_play", "Google Play"),
     )
 
     id = models.CharField(

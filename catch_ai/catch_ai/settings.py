@@ -33,12 +33,16 @@ SECRET_KEY = 'django-insecure-+doln_)80h6s3&jcow=wh)ljx*#_$j%)c!y*+pcp^wg1iry2%_
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+IAP_SANDBOX_MODE = True
+
 ALLOWED_HOSTS = [ "ai-vidcatch.onrender.com",
                  "localhost",
                  "127.0.0.1"]
 
 
 GOOGLE_CLIENT_ID = "91682002543-lcbtoorrjgubalohid9jn1s92a20474q.apps.googleusercontent.com"
+
+GOOGLE_PLAY_PACKAGE_NAME = "com.yourapp.package"
 
 # STATIC_URL = "static/"
 

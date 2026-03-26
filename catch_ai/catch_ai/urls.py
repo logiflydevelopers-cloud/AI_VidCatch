@@ -44,6 +44,7 @@ urlpatterns = [
     path("api/generations/", include("apps.generations.urls")),
     path("api/features/", include("apps.features.urls")),
     path("api/subscriptions/", include("apps.subscriptions.urls")),
+    path("api/payments/", include("apps.payments.urls")),
 
     # Admin APIs (Separated properly)
     path("api/admin/", include("apps.templates.admin_urls"))

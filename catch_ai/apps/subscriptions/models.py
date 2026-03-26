@@ -51,6 +51,8 @@ class Plan(models.Model):
 
     updated_at = models.DateTimeField(auto_now=True)
 
+    product_id = models.CharField(max_length=100, unique=True, null=True, blank=True)
+
     # ============================
     # SAVE (ONLY IF NOT USING FIREBASE ID)
     # ============================
