@@ -14,6 +14,10 @@ from google.auth.transport import requests as google_requests
 from django.conf import settings
 from rest_framework.permissions import AllowAny
 
+from django.contrib.auth.tokens import PasswordResetTokenGenerator
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
+
 User = get_user_model()
 
 
@@ -158,3 +162,69 @@ def google_login(request):
             "refresh": str(refresh)
         }
     })
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def forgot_password(request):
+
+    email = request.data.get("email")
+
+    if not email:
+        return Response(
+            {"error": "Email is required"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    user = User.objects.filter(email=email).first()
+
+    # Don't reveal if user exists or not
+    if user:
+        token = PasswordResetTokenGenerator().make_token(user)
+        uid = urlsafe_base64_encode(force_bytes(user.id))
+
+        reset_link = f"http://localhost:3000/reset-password?uid={uid}&token={token}"
+
+        # For now (testing)
+        print("RESET LINK:", reset_link)
+
+        # Later: send email here
+
+    return Response({
+        "message": "If email exists, reset link sent"
+    }, status=status.HTTP_200_OK)
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def reset_password(request):
+
+    uid = request.data.get("uid")
+    token = request.data.get("token")
+    new_password = request.data.get("new_password")
+
+    if not uid or not token or not new_password:
+        return Response(
+            {"error": "uid, token and new_password are required"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    try:
+        user_id = force_str(urlsafe_base64_decode(uid))
+        user = User.objects.get(id=user_id)
+    except Exception:
+        return Response(
+            {"error": "Invalid user"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    if not PasswordResetTokenGenerator().check_token(user, token):
+        return Response(
+            {"error": "Invalid or expired token"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    user.set_password(new_password)
+    user.save()
+
+    return Response({
+        "message": "Password reset successful"
+    }, status=status.HTTP_200_OK)

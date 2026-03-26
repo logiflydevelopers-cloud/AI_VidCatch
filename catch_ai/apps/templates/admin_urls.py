@@ -10,6 +10,7 @@ from .admin_views import (
 from apps.features.admin_views import list_features, get_feature, update_feature
 from apps.dashboard.views import dashboard
 from apps.users.admin_views import delete_user
+from apps.notifications.admin_views import get_all_notifications, create_notification, update_notification, delete_notification
 
 urlpatterns = [
     path("templates/", create_template),
@@ -23,4 +24,8 @@ urlpatterns = [
     path("features/<str:feature_id>/update/", update_feature),
     path("dashboard/", dashboard),
     path("users/<str:user_id>/", delete_user),
+    path("notifications/", get_all_notifications),
+    path("notifications/create/", create_notification),
+    path("notifications/<str:notif_id>/update/", update_notification),
+    path("notifications/<str:notif_id>/delete/",delete_notification),
 ]
