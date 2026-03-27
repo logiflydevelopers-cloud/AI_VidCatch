@@ -53,9 +53,9 @@ class Plan(models.Model):
 
     product_id = models.CharField(max_length=100, unique=True, null=True, blank=True)
 
-    # ============================
-    # SAVE (ONLY IF NOT USING FIREBASE ID)
-    # ============================
+    # ======================================
+    # SAVE
+    # ======================================
     def save(self, *args, **kwargs):
 
         # Generate ID if not exists

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const uid = params.get("uid");
+    const token = params.get("token");
+
+    const appLink = `aividcatch://reset-password?uid=${uid}&token=${token}`;
+    // const playStore = "https://play.google.com/store/apps/details?id=com.aividcatch.generator";
+
+    // Try to open app
+    window.location.href = appLink;
+
+    // Fallback to Play Store if app not installed
+    setTimeout(() => {
+      window.location.href = playStore;
+    }, 2000);
+  </script>
+</head>
+<h1>EMAIL REIRECTION........</h1>
+<p>JJJHUBGHVKJLN; KILNN LKJIJOIYHUIGBJKHNO;PK[P';VDL].</p>
+<body>
+</body>
+</html>

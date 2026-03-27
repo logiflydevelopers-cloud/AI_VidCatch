@@ -2,6 +2,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
+from django.core.mail import send_mail
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth import authenticate
@@ -186,12 +187,28 @@ def forgot_password(request):
         token = PasswordResetTokenGenerator().make_token(user)
         uid = urlsafe_base64_encode(force_bytes(user.id))
 
-        reset_link = f"http://localhost:3000/reset-password?uid={uid}&token={token}"
+        reset_link = f"https://silver-sable-a9fee9.netlify.app//reset-password?uid={uid}&token={token}"
 
-        # For now (testing)
-        print("RESET LINK:", reset_link)
+        subject = "Reset Your Password"
+        message = f"""
+                Hi {user.username},
 
-        # Later: send email here
+                Click the link below to reset your password:
+
+                {reset_link}
+
+                If you didn't request this, ignore this email.
+                """
+
+        send_mail(
+            subject,
+            message,
+            settings.DEFAULT_FROM_EMAIL,
+            [email],
+            fail_silently=False,
+        )
+
+        print(reset_link)
 
     return Response({
         "message": "If email exists, reset link sent"
