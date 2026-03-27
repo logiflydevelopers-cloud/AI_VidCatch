@@ -6,6 +6,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
 from datetime import timedelta
+import logging
 
 from apps.features.models import Features
 from .models import Generation
@@ -168,12 +169,23 @@ def run_generation(self, generation_id, payload):
             generation.save()
 
 
+logger = logging.getLogger(__name__)
+
+
 @shared_task
 def delete_old_generations():
-    cutoff_date = timezone.now() - timedelta(days=7)
+    logger.info("🟡 Task started: delete_old_generations")
 
-    deleted_count, _ = Generation.objects.filter(
-        created_at__lt=cutoff_date
-    ).delete()
+    cutoff_date = timezone.now() - timedelta(minutes=5)
+    logger.info(f"⏳ Cutoff time: {cutoff_date}")
+
+    queryset = Generation.objects.filter(created_at__lt=cutoff_date)
+    total_to_delete = queryset.count()
+
+    logger.info(f"📊 Records to delete: {total_to_delete}")
+
+    deleted_count, _ = queryset.delete()
+
+    logger.info(f"✅ Deleted {deleted_count} old generations")
 
     return f"Deleted {deleted_count} old generations"
