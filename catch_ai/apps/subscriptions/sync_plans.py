@@ -17,7 +17,7 @@ def sync_plans():
             defaults={
                 "name": data.get("name"),
                 "credits_per_month": data.get("credits_per_month", 0),
-                "price": data.get("price", 0),
+                "price_inr": data.get("price_inr", 0),
                 "daily_limit": data.get("daily_limit"),
                 "features": data.get("features", []),
                 "validity_days": data.get("validity_days", 30),
