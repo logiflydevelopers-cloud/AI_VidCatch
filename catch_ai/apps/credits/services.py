@@ -40,7 +40,7 @@ def deduct_credits(user, amount, description="", template=None, feature=None):
 
     before = wallet.balance
 
-    # 🔥 CRITICAL: update BOTH
+    # CRITICAL: update BOTH
     wallet.balance -= amount
     wallet.used_credits += amount
 
@@ -67,7 +67,7 @@ def apply_plan_purchase(user, plan):
 
     before = wallet.balance
 
-    # 🔥 RESET WALLET
+    # RESET WALLET
     wallet.balance = plan.credits_per_month
     wallet.total_credits = plan.credits_per_month
     wallet.used_credits = 0

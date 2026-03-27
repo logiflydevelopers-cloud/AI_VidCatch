@@ -49,7 +49,7 @@ def sync_plans_admin(request):
 @api_view(["GET"])
 def get_all_plans(request):
     try:
-        plans = Plan.objects.filter(is_active=True).order_by("price")
+        plans = Plan.objects.filter(is_active=True).order_by("price_inr")
 
         serializer = PlanSerializer(plans, many=True)
 
