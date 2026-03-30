@@ -9,6 +9,7 @@ from apps.features.models import Features, FeatureSetting
 from apps.services.firebase_storage import upload_file
 
 from apps.credits.models import UserCredits, CreditTransaction
+from .models import GenerationConfig
 
 # optional delete
 try:
@@ -472,3 +473,66 @@ class CreditTransactionAdmin(admin.ModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+    
+class GenerationConfigAdminForm(forms.ModelForm):
+
+    class Meta:
+        model = GenerationConfig
+        fields = "__all__"
+        widgets = {
+            "default_settings": JSONEditorWidget,
+        }
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        model = cleaned_data.get("model")
+        feature_type = cleaned_data.get("feature_type")
+
+        if model and model.feature_type != feature_type:
+            raise ValidationError("Model feature_type must match config feature_type")
+
+        return cleaned_data
+    
+@admin.register(GenerationConfig)
+class GenerationConfigAdmin(admin.ModelAdmin):
+
+    form = GenerationConfigAdminForm
+
+    list_display = (
+        "id",
+        "name",
+        "config_type",
+        "feature_type",
+        "model",
+        "is_active",
+        "created_at",
+    )
+
+    list_filter = ("config_type", "feature_type", "is_active")
+
+    search_fields = ("name",)
+
+    readonly_fields = ("id", "created_at")
+
+    # -----------------------------
+    # FILTER MODEL BASED ON FEATURE
+    # -----------------------------
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "model":
+            kwargs["queryset"] = AIModel.objects.filter(is_active=True)
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+    # -----------------------------
+    # ENSURE SINGLE ACTIVE CONFIG
+    # -----------------------------
+    def save_model(self, request, obj, form, change):
+
+        if obj.is_active:
+            GenerationConfig.objects.filter(
+                config_type=obj.config_type,
+                is_active=True
+            ).exclude(id=obj.id).update(is_active=False)
+
+        super().save_model(request, obj, form, change)
+

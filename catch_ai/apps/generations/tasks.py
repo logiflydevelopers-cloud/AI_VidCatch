@@ -13,7 +13,7 @@ from .models import Generation
 from apps.services.firebase_storage import upload_generated_file
 from apps.credits.services import deduct_credits, add_credits
 from celery.exceptions import MaxRetriesExceededError
-
+from apps.templates.models import GenerationConfig
 
 FASTAPI_GENERATE_URL = settings.FASTAPI_GENERATE_URL
 
@@ -70,6 +70,41 @@ def run_generation(self, generation_id, payload):
 
             generation.is_credits_deducted = True
             generation.save(update_fields=["is_credits_deducted"])
+
+        # ============================
+        # AUTO VIDEO PAYLOAD OVERRIDE
+        # ============================
+        if generation.source_type == "auto_video":
+
+            config = GenerationConfig.objects.filter(
+                config_type="auto_video",
+                is_active=True
+            ).first()
+
+            if not config:
+                raise Exception("Auto video config not found")
+
+            image = (
+                generation.input_payload.get("image")
+                or generation.input_payload.get("image_url")
+            )
+
+            if not image:
+                raise Exception("Image is required for auto video")
+
+            # 🔥 Build payload from admin config
+            payload = {
+                "feature": config.feature_type,
+                "model": config.model.code,
+                "inputs": {
+                    "image": image,
+                    "image_url": image,
+                    "images": [image],
+                    "prompt": config.prompt_template
+                },
+                "settings": config.default_settings or {}
+            }
+
 
         # ============================
         # CALL FASTAPI

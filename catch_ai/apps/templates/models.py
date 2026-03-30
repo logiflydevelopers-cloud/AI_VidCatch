@@ -173,3 +173,43 @@ class Template(models.Model):
 
     def __str__(self):
         return self.name
+    
+
+class GenerationConfig(models.Model):
+
+    CONFIG_TYPE_CHOICES = (
+        ("auto_video", "Auto Video"),
+    )
+
+    id = models.CharField(primary_key=True, max_length=20, editable=False)
+
+    name = models.CharField(max_length=255)
+
+    config_type = models.CharField(max_length=50, choices=CONFIG_TYPE_CHOICES)
+
+    # 🔥 CORE LOGIC
+    feature_type = models.CharField(max_length=50, choices=FEATURE_CHOICES)
+
+    model = models.ForeignKey(
+        AIModel,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+
+    prompt_template = models.TextField()
+
+    default_settings = models.JSONField(blank=True, null=True)
+
+    # 🔥 CONTROL
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if not self.id:
+            self.id = f"cfg_{uuid.uuid4().hex[:8].upper()}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
