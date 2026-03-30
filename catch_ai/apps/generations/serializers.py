@@ -1,14 +1,7 @@
 from rest_framework import serializers
 from .models import Generation
-from apps.templates.models import Template
-from apps.features.models import Features
-
-
-
-from rest_framework import serializers
-f
 from apps.templates.models import Template, GenerationConfig
-
+from apps.features.models import Features
 
 
 class GenerateSerializer(serializers.Serializer):
@@ -184,7 +177,7 @@ class GenerateSerializer(serializers.Serializer):
 
         data["input_data"] = clean_input
 
-        return data
+        return data     
     
 class GenerationSerializer(serializers.ModelSerializer):
 
