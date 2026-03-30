@@ -6,11 +6,15 @@ from apps.features.models import Features
 
 
 from rest_framework import serializers
-from apps.templates.models import Template
-from apps.features.models import Features
+f
+from apps.templates.models import Template, GenerationConfig
+
 
 
 class GenerateSerializer(serializers.Serializer):
+
+    # 🔥 REQUIRED FOR AUTO MODE
+    source_type = serializers.CharField(required=False)
 
     template_id = serializers.CharField(required=False)
     feature_id = serializers.CharField(required=False)
@@ -21,7 +25,7 @@ class GenerateSerializer(serializers.Serializer):
     input_data = serializers.JSONField()
     settings = serializers.JSONField(required=False)
 
-    # ✅ FIX: dynamic quality (NO hardcoding)
+    # dynamic quality
     quality = serializers.CharField(required=False)
 
     def validate(self, data):
@@ -31,6 +35,7 @@ class GenerateSerializer(serializers.Serializer):
         input_data = data.get("input_data", {})
         settings = data.get("settings")
         quality = data.get("quality")
+        source_type = data.get("source_type")
 
         # =====================================
         # VALIDATE SOURCE
@@ -76,30 +81,53 @@ class GenerateSerializer(serializers.Serializer):
 
             schema = feature.input_schema or {}
 
-        # attach to validated_data
+        # attach objects
         data["template_obj"] = template
         data["feature_obj"] = feature
 
         # =====================================
-        # 🔥 DYNAMIC QUALITY VALIDATION
+        # 🔥 AUTO SETTINGS FROM DB (AUTO VIDEO)
+        # =====================================
+        if source_type == "auto_video" and feature:
+
+            config = GenerationConfig.objects.filter(
+                config_type="auto_video",
+                is_active=True
+            ).first()
+
+            if not config:
+                raise serializers.ValidationError("Auto video config not found")
+
+            db_settings = config.default_settings or {}
+
+            # merge user override if provided
+            final_settings = {**db_settings, **(settings or {})}
+
+            data["settings"] = final_settings
+
+        # =====================================
+        # 🔥 DYNAMIC QUALITY LOGIC
         # =====================================
         if feature:
 
-            # If feature has model_mapping → dynamic modes
             if feature.model_mapping:
 
-                if not quality:
-                    raise serializers.ValidationError({
-                        "quality": "This field is required"
-                    })
+                # ✅ AUTO MODE → no quality required
+                if source_type == "auto_video":
+                    data["quality"] = list(feature.model_mapping.keys())[0]
 
-                if quality not in feature.model_mapping:
-                    raise serializers.ValidationError({
-                        "quality": f"{quality} is not a valid choice"
-                    })
+                else:
+                    if not quality:
+                        raise serializers.ValidationError({
+                            "quality": "This field is required"
+                        })
+
+                    if quality not in feature.model_mapping:
+                        raise serializers.ValidationError({
+                            "quality": f"{quality} is not a valid choice"
+                        })
 
             else:
-                # Normal feature → quality not allowed
                 if quality:
                     raise serializers.ValidationError({
                         "quality": "Not allowed for this feature"
@@ -118,16 +146,13 @@ class GenerateSerializer(serializers.Serializer):
 
             value = input_data.get(name)
 
-            # required validation
             if required and name not in input_data:
                 raise serializers.ValidationError(f"{name} is required")
 
             if value is None:
                 continue
 
-            # ============================
             # TYPE VALIDATION
-            # ============================
             if field_type == "number":
                 if not isinstance(value, (int, float)):
                     raise serializers.ValidationError(f"{name} must be a number")
@@ -140,9 +165,7 @@ class GenerateSerializer(serializers.Serializer):
                 if not isinstance(value, str):
                     raise serializers.ValidationError(f"{name} must be an image URL")
 
-            # ============================
             # LIMIT VALIDATION
-            # ============================
             min_val = field.get("min")
             max_val = field.get("max")
 
@@ -160,12 +183,6 @@ class GenerateSerializer(serializers.Serializer):
             clean_input = input_data
 
         data["input_data"] = clean_input
-
-        # =====================================
-        # SETTINGS VALIDATION
-        # =====================================
-        if settings:
-            data["settings"] = settings
 
         return data
     
