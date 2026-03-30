@@ -83,23 +83,20 @@ class GenerateSerializer(serializers.Serializer):
         # =====================================
         # 🔥 DYNAMIC QUALITY VALIDATION
         # =====================================
-        if feature.model_mapping:
+        if feature:
 
-            # 🔥 AUTO MODE → skip quality requirement
-            if data.get("source_type") == "auto_video":
-                # assign default automatically (first key)
-                data["quality"] = list(feature.model_mapping.keys())[0]
+            # If feature has model_mapping → dynamic modes
+            if feature.model_mapping:
 
-        else:
-            if not quality:
-                raise serializers.ValidationError({
-                    "quality": "This field is required"
-                })
+                if not quality:
+                    raise serializers.ValidationError({
+                        "quality": "This field is required"
+                    })
 
-            if quality not in feature.model_mapping:
-                raise serializers.ValidationError({
-                    "quality": f"{quality} is not a valid choice"
-                })
+                if quality not in feature.model_mapping:
+                    raise serializers.ValidationError({
+                        "quality": f"{quality} is not a valid choice"
+                    })
 
             else:
                 # Normal feature → quality not allowed
