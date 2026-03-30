@@ -211,7 +211,7 @@ logger = logging.getLogger(__name__)
 def delete_old_generations():
     logger.info("🟡 Task started: delete_old_generations")
 
-    cutoff_date = timezone.now() - timedelta(minutes=5)
+    cutoff_date = timezone.now() - timedelta(days=7)
     logger.info(f"⏳ Cutoff time: {cutoff_date}")
 
     queryset = Generation.objects.filter(created_at__lt=cutoff_date)
