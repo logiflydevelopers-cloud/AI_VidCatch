@@ -74,12 +74,11 @@ class GenerateSerializer(serializers.Serializer):
 
             schema = feature.input_schema or {}
 
-        # attach objects
         data["template_obj"] = template
         data["feature_obj"] = feature
 
         # =====================================
-        # 🔥 AUTO SETTINGS FROM DB (AUTO VIDEO)
+        # 🔥 AUTO CONFIG (SETTINGS + PROMPT)
         # =====================================
         if source_type == "auto_video" and feature:
 
@@ -91,23 +90,36 @@ class GenerateSerializer(serializers.Serializer):
             if not config:
                 raise serializers.ValidationError("Auto video config not found")
 
+            # ---------- SETTINGS ----------
             db_settings = config.default_settings or {}
 
-            # merge user override if provided
-            final_settings = {**db_settings, **(settings or {})}
+            # ✅ Only allow valid keys (avoid FastAPI errors)
+            allowed_settings = ["resolution", "aspect_ratio", "generate_audio"]
 
-            data["settings"] = final_settings
+            filtered_settings = {
+                k: v for k, v in db_settings.items() if k in allowed_settings
+            }
+
+            data["settings"] = {**filtered_settings, **(settings or {})}
+
+            # ---------- PROMPT ----------
+            prompt = config.prompt_template
+
+            if not prompt:
+                raise serializers.ValidationError("Prompt template missing")
+
+            data["input_data"]["prompt"] = prompt
 
         # =====================================
-        # 🔥 DYNAMIC QUALITY LOGIC
+        # 🔥 QUALITY LOGIC
         # =====================================
         if feature:
 
             if feature.model_mapping:
 
-                # ✅ AUTO MODE → no quality required
                 if source_type == "auto_video":
-                    data["quality"] = list(feature.model_mapping.keys())[0]
+                    # ✅ safe default (first key)
+                    data["quality"] = list(feature.model_mapping.keys())[2]
 
                 else:
                     if not quality:
@@ -145,7 +157,6 @@ class GenerateSerializer(serializers.Serializer):
             if value is None:
                 continue
 
-            # TYPE VALIDATION
             if field_type == "number":
                 if not isinstance(value, (int, float)):
                     raise serializers.ValidationError(f"{name} must be a number")
@@ -158,7 +169,6 @@ class GenerateSerializer(serializers.Serializer):
                 if not isinstance(value, str):
                     raise serializers.ValidationError(f"{name} must be an image URL")
 
-            # LIMIT VALIDATION
             min_val = field.get("min")
             max_val = field.get("max")
 
@@ -171,13 +181,12 @@ class GenerateSerializer(serializers.Serializer):
 
             clean_input[name] = value
 
-        # If no schema → allow all inputs
         if not fields:
             clean_input = input_data
 
         data["input_data"] = clean_input
 
-        return data     
+        return data
     
 class GenerationSerializer(serializers.ModelSerializer):
 
