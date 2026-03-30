@@ -94,7 +94,7 @@ class GenerateSerializer(serializers.Serializer):
             db_settings = config.default_settings or {}
 
             # ✅ Only allow valid keys (avoid FastAPI errors)
-            allowed_settings = ["resolution", "aspect_ratio", "generate_audio"]
+            allowed_settings = ["duration", "resolution", "aspect_ratio", "generate_audio"]
 
             filtered_settings = {
                 k: v for k, v in db_settings.items() if k in allowed_settings
