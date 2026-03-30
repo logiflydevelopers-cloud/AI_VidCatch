@@ -14,6 +14,7 @@ class Payment(models.Model):
         ("success", "Success"),
         ("failed", "Failed"),
         ("refunded", "Refunded"),
+        ("cancelled", "Cancelled"),
     )
 
     PROVIDER_CHOICES = (
@@ -23,6 +24,9 @@ class Payment(models.Model):
         ("google_play", "Google Play"),
     )
 
+    # ============================
+    # PRIMARY ID
+    # ============================
     id = models.CharField(
         primary_key=True,
         max_length=30,
@@ -49,7 +53,6 @@ class Payment(models.Model):
     # PAYMENT INFO
     # ============================
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-
     currency = models.CharField(max_length=10, default="INR")
 
     status = models.CharField(
@@ -64,12 +67,13 @@ class Payment(models.Model):
     )
 
     # ============================
-    # EXTERNAL IDS (IMPORTANT)
+    # EXTERNAL IDS (ANTI-FRAUD)
     # ============================
     provider_payment_id = models.CharField(
         max_length=255,
         null=True,
-        blank=True
+        blank=True,
+        unique=True   # 🔥 prevents duplicate purchase reuse
     )
 
     provider_order_id = models.CharField(
@@ -85,11 +89,36 @@ class Payment(models.Model):
     )
 
     # ============================
-    # METADATA
+    # SAFETY / DEBUGGING
     # ============================
-    metadata = models.JSONField(null=True, blank=True)
+    idempotency_key = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        db_index=True
+    )
 
-    failure_reason = models.TextField(null=True, blank=True)
+    raw_response = models.JSONField(
+        null=True,
+        blank=True
+    )
+
+    metadata = models.JSONField(
+        default=dict,
+        blank=True
+    )
+
+    failure_reason = models.TextField(
+        null=True,
+        blank=True
+    )
+
+    is_acknowledged = models.BooleanField(default=False)
+
+    refunded_at = models.DateTimeField(
+        null=True,
+        blank=True
+    )
 
     # ============================
     # TIMESTAMPS
@@ -98,7 +127,17 @@ class Payment(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     # ============================
-    # SAVE
+    # INDEXES (PERFORMANCE)
+    # ============================
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "status"]),
+            models.Index(fields=["provider", "provider_payment_id"]),
+            models.Index(fields=["created_at"]),
+        ]
+
+    # ============================
+    # SAVE METHOD
     # ============================
     def save(self, *args, **kwargs):
         if not self.id:
@@ -107,8 +146,11 @@ class Payment(models.Model):
 
     def __str__(self):
         return f"{self.user} - {self.amount} ({self.status})"
-    
 
+
+# ==========================================
+# PAYMENT EVENT MODEL (AUDIT LOG)
+# ==========================================
 class PaymentEvent(models.Model):
 
     EVENT_TYPE = (
@@ -116,6 +158,7 @@ class PaymentEvent(models.Model):
         ("success", "Success"),
         ("failed", "Failed"),
         ("refund", "Refund"),
+        ("webhook", "Webhook"),
     )
 
     payment = models.ForeignKey(
@@ -124,8 +167,23 @@ class PaymentEvent(models.Model):
         related_name="events"
     )
 
-    event_type = models.CharField(max_length=20, choices=EVENT_TYPE)
+    event_type = models.CharField(
+        max_length=20,
+        choices=EVENT_TYPE
+    )
 
-    data = models.JSONField(null=True, blank=True)
+    data = models.JSONField(
+        default=dict,
+        blank=True
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["payment", "event_type"]),
+            models.Index(fields=["created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.payment_id} - {self.event_type}"

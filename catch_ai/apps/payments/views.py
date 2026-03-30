@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -13,6 +15,15 @@ from apps.credits.services import apply_plan_purchase
 from .google_play import verify_android_purchase
 
 
+logger = logging.getLogger(__name__)
+
+
+class PaymentStatus:
+    PENDING = "pending"
+    SUCCESS = "success"
+    FAILED = "failed"
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def purchase_plan(request):
@@ -22,6 +33,7 @@ def purchase_plan(request):
     purchase_token = request.data.get("purchase_token")
     product_id = request.data.get("product_id")
     order_id = request.data.get("order_id")
+    idempotency_key = request.headers.get("Idempotency-Key")
 
     # ============================
     # VALIDATION
@@ -33,6 +45,21 @@ def purchase_plan(request):
         )
 
     # ============================
+    # IDEMPOTENCY CHECK
+    # ============================
+    if idempotency_key:
+        existing_payment = Payment.objects.filter(
+            idempotency_key=idempotency_key,
+            status=PaymentStatus.SUCCESS
+        ).first()
+
+        if existing_payment:
+            return Response({
+                "message": "Already processed",
+                "payment_id": existing_payment.id
+            }, status=200)
+
+    # ============================
     # GET PLAN
     # ============================
     try:
@@ -41,31 +68,20 @@ def purchase_plan(request):
         return Response({"error": "Invalid plan"}, status=404)
 
     # ============================
-    # PRODUCT VALIDATION (ANTI-FRAUD)
+    # PRODUCT VALIDATION
     # ============================
     if plan.product_id != product_id:
         return Response({"error": "Product mismatch"}, status=400)
 
     # ============================
-    # PREVENT DUPLICATE PURCHASE
+    # DUPLICATE PURCHASE CHECK
     # ============================
     if Payment.objects.filter(
         provider="google_play",
         provider_payment_id=purchase_token,
-        status="success"
+        status=PaymentStatus.SUCCESS
     ).exists():
         return Response({"error": "Purchase already used"}, status=400)
-
-    # ============================
-    # PREVENT SAME ACTIVE PLAN
-    # ============================
-    active_sub = UserSubscription.objects.filter(
-        user=user,
-        status="active"
-    ).first()
-
-    if active_sub and active_sub.current_plan == plan:
-        return Response({"error": "Already subscribed to this plan"}, status=400)
 
     # ============================
     # CREATE PAYMENT (PENDING)
@@ -74,69 +90,123 @@ def purchase_plan(request):
         user=user,
         plan=plan,
         amount=plan.price_inr,
-        status="pending",
+        status=PaymentStatus.PENDING,
         provider="google_play",
         provider_payment_id=purchase_token,
-        provider_order_id=order_id
+        provider_order_id=order_id,
+        idempotency_key=idempotency_key
     )
 
-    # ============================
-    # VERIFY WITH GOOGLE PLAY / SANDBOX
-    # ============================
-    package_name = settings.GOOGLE_PLAY_PACKAGE_NAME
+    logger.info(f"Purchase initiated user={user.id}, plan={plan.id}")
 
-    if settings.IAP_SANDBOX_MODE or request.user.is_staff:
-        verification = {"purchaseState": 0}
-    else:
-        verification = verify_android_purchase(
-            package_name=package_name,
-            product_id=product_id,
-            purchase_token=purchase_token
-        )
+    # ============================
+    # VERIFY WITH GOOGLE PLAY
+    # ============================
+    try:
+        if settings.IAP_SANDBOX_MODE:
+            verification = {
+                "purchaseState": 0,
+                "productId": product_id,
+                "acknowledgementState": 1
+            }
+        else:
+            verification = verify_android_purchase(
+                package_name=settings.GOOGLE_PLAY_PACKAGE_NAME,
+                product_id=product_id,
+                purchase_token=purchase_token
+            )
+
+    except Exception as e:
+        logger.error(f"Verification error: {str(e)}")
+
+        payment.status = PaymentStatus.FAILED
+        payment.failure_reason = str(e)
+        payment.save()
+
+        return Response({"error": "Verification failed"}, status=400)
 
     if not verification:
-        payment.status = "failed"
-        payment.failure_reason = "Verification failed"
+        payment.status = PaymentStatus.FAILED
+        payment.failure_reason = "Empty verification response"
         payment.save()
 
         return Response({"error": "Invalid purchase"}, status=400)
 
     # ============================
-    # VALIDATE PURCHASE STATE
+    # GOOGLE VALIDATIONS
     # ============================
+
+    # Product match from Google
+    if verification.get("productId") != product_id:
+        payment.status = PaymentStatus.FAILED
+        payment.failure_reason = "Product mismatch from Google"
+        payment.save()
+
+        return Response({"error": "Invalid product"}, status=400)
+
+    # Purchase completed
     if verification.get("purchaseState") != 0:
-        payment.status = "failed"
+        payment.status = PaymentStatus.FAILED
         payment.failure_reason = "Purchase not completed"
         payment.save()
 
         return Response({"error": "Purchase not completed"}, status=400)
 
+    # Already consumed (safety)
+    if verification.get("consumptionState") == 1:
+        payment.status = PaymentStatus.FAILED
+        payment.failure_reason = "Already consumed"
+        payment.save()
+
+        return Response({"error": "Already consumed"}, status=400)
+
     # ============================
-    # ATOMIC TRANSACTION (CRITICAL)
+    # ATOMIC TRANSACTION
     # ============================
     with transaction.atomic():
 
-        # MARK PAYMENT SUCCESS
-        payment.status = "success"
+        # Lock row (race condition protection)
+        payment = Payment.objects.select_for_update().get(id=payment.id)
+
+        if payment.status == PaymentStatus.SUCCESS:
+            return Response({"message": "Already processed"}, status=200)
+
+        payment.status = PaymentStatus.SUCCESS
+        payment.raw_response = verification
         payment.save()
 
-        # DEACTIVATE OLD SUBSCRIPTIONS
-        UserSubscription.objects.filter(
+        # ============================
+        # SUBSCRIPTION HANDLING
+        # ============================
+        active_sub = UserSubscription.objects.filter(
             user=user,
             status="active"
-        ).update(status="expired")
+        ).first()
 
-        # CREATE NEW SUBSCRIPTION
+        start_date = timezone.now()
+
+        # Extend if active subscription exists
+        if active_sub and active_sub.end_date > timezone.now():
+            start_date = active_sub.end_date
+            active_sub.status = "expired"
+            active_sub.save()
+
+        end_date = start_date + timezone.timedelta(days=plan.validity_days)
+
         UserSubscription.objects.create(
             user=user,
             current_plan=plan,
-            start_date=timezone.now(),
-            end_date=timezone.now() + timezone.timedelta(days=30),
+            start_date=start_date,
+            end_date=end_date,
             status="active"
         )
 
+        # ============================
         # APPLY CREDITS
+        # ============================
         apply_plan_purchase(user, plan)
+
+    logger.info(f"Purchase success user={user.id}, plan={plan.id}")
 
     # ============================
     # RESPONSE
