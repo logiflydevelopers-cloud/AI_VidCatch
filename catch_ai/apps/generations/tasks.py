@@ -1,10 +1,10 @@
 import requests
 import traceback
 import json
+
 from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
-from django.db import transaction
 from datetime import timedelta
 import logging
 
@@ -16,6 +16,7 @@ from celery.exceptions import MaxRetriesExceededError
 from apps.templates.models import GenerationConfig
 
 FASTAPI_GENERATE_URL = settings.FASTAPI_GENERATE_URL
+logger = logging.getLogger(__name__)
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=10)
@@ -27,7 +28,7 @@ def run_generation(self, generation_id, payload):
         "user"
     ).get(id=generation_id)
 
-    logger.info(f"=========================================Incoming Payload from frontend:/n ==================================== {payload}")
+    logger.info(f"Incoming Payload from frontend: {payload}")
 
     # ============================
     # IDEMPOTENCY CHECK
@@ -49,7 +50,6 @@ def run_generation(self, generation_id, payload):
         if cost <= 0:
             raise Exception("Invalid credit cost")
 
-        # Save cost once
         if not generation.credit_used:
             generation.credit_used = cost
 
@@ -61,7 +61,6 @@ def run_generation(self, generation_id, payload):
         # CREDIT DEDUCTION
         # ============================
         if not generation.is_credits_deducted:
-
             deduct_credits(
                 user=generation.user,
                 amount=cost,
@@ -93,7 +92,10 @@ def run_generation(self, generation_id, payload):
 
             if not image:
                 raise Exception("Image is required for auto video")
-            
+
+            # ============================
+            # SETTINGS FETCH FROM DB
+            # ============================
             settings_data = config.default_settings
 
             if isinstance(settings_data, str):
@@ -102,21 +104,20 @@ def run_generation(self, generation_id, payload):
             if not isinstance(settings_data, dict):
                 raise Exception("Invalid settings in DB")
 
-            # 🔥 Build payload from admin config
+            # ============================
+            # BUILD FINAL PAYLOAD
+            # ============================
             payload = {
                 "feature": config.feature_type,
                 "model": config.model.code,
                 "inputs": {
-                    "image": image,
-                    "image_url": image,
-                    "images": [image],
+                    "image_1": image,   # ✅ FIXED (IMPORTANT)
                     "prompt": config.prompt_template
                 },
                 "settings": settings_data
             }
 
-            logger.info(f"FINAL PAYLOAD: {json.dumps(payload, indent=2)}")
-
+            logger.info(f"FINAL PAYLOAD TO FASTAPI: {json.dumps(payload, indent=2)}")
 
         # ============================
         # CALL FASTAPI
@@ -141,6 +142,9 @@ def run_generation(self, generation_id, payload):
         if not ai_result_url:
             raise Exception("AI result URL missing")
 
+        # ============================
+        # DETECT RESULT TYPE
+        # ============================
         if ai_result_url.endswith((".mp4", ".mov", ".webm")):
             result_type = "video"
         elif ai_result_url.endswith((".png", ".jpg", ".jpeg", ".webp")):
@@ -189,7 +193,7 @@ def run_generation(self, generation_id, payload):
                 generation.save(update_fields=["is_refunded"])
 
         except Exception as refund_error:
-            print("Refund failed:", refund_error)
+            logger.error(f"Refund failed: {refund_error}")
 
         # ============================
         # RETRY LOGIC
@@ -205,23 +209,23 @@ def run_generation(self, generation_id, payload):
 
                 generation.status = "failed"
                 generation.error_message = f"Max retries reached: {str(exc)}"
-                generation.completed_at = timezone.now()
-                generation.save()
 
             else:
                 generation.status = "failed"
-                generation.error_message = json.dumps(exc, indent=2) if isinstance(exc, dict) else str(exc)
-                generation.completed_at = timezone.now()
-                generation.save()
+                generation.error_message = (
+                    json.dumps(exc, indent=2)
+                    if isinstance(exc, dict)
+                    else str(exc)
+                )
+
+            generation.completed_at = timezone.now()
+            generation.save()
 
         except MaxRetriesExceededError:
             generation.status = "failed"
             generation.error_message = f"Retries exhausted: {str(exc)}"
             generation.completed_at = timezone.now()
             generation.save()
-
-
-logger = logging.getLogger(__name__)
 
 
 @shared_task
