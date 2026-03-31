@@ -1,5 +1,6 @@
 import requests
 import traceback
+import json
 
 from celery import shared_task
 from django.conf import settings
@@ -117,8 +118,13 @@ def run_generation(self, generation_id, payload):
             timeout=300
         )
 
-        response.raise_for_status()
-        data = response.json()
+        try:
+            data = response.json()
+        except Exception:
+            data = {"error": response.text}
+
+        if response.status_code != 200:
+            raise Exception(data)
 
         generation.response_payload = data
 
@@ -195,7 +201,7 @@ def run_generation(self, generation_id, payload):
 
             else:
                 generation.status = "failed"
-                generation.error_message = str(exc)
+                generation.error_message = json.dumps(exc, indent=2) if isinstance(exc, dict) else str(exc)
                 generation.completed_at = timezone.now()
                 generation.save()
 
