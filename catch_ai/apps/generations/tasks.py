@@ -27,6 +27,8 @@ def run_generation(self, generation_id, payload):
         "user"
     ).get(id=generation_id)
 
+    logger.info(f"=========================================Incoming Payload from frontend:/n ==================================== {payload}")
+
     # ============================
     # IDEMPOTENCY CHECK
     # ============================

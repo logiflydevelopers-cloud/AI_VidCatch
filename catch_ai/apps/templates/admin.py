@@ -493,7 +493,8 @@ class GenerationConfigAdminForm(forms.ModelForm):
             raise ValidationError("Model feature_type must match config feature_type")
 
         return cleaned_data
-    
+
+
 @admin.register(GenerationConfig)
 class GenerationConfigAdmin(admin.ModelAdmin):
 
@@ -505,6 +506,7 @@ class GenerationConfigAdmin(admin.ModelAdmin):
         "config_type",
         "feature_type",
         "model",
+        "credits",   # ✅ ADDED HERE
         "is_active",
         "created_at",
     )
@@ -514,6 +516,22 @@ class GenerationConfigAdmin(admin.ModelAdmin):
     search_fields = ("name",)
 
     readonly_fields = ("id", "created_at")
+
+    # ✅ Optional: Better UI grouping
+    fieldsets = (
+        ("Basic Info", {
+            "fields": ("id", "name", "config_type", "feature_type")
+        }),
+        ("AI Settings", {
+            "fields": ("model", "prompt_template", "default_settings")
+        }),
+        ("Credits & Control", {
+            "fields": ("credits", "is_active")
+        }),
+        ("Metadata", {
+            "fields": ("created_at",)
+        }),
+    )
 
     # -----------------------------
     # FILTER MODEL BASED ON FEATURE
@@ -535,4 +553,3 @@ class GenerationConfigAdmin(admin.ModelAdmin):
             ).exclude(id=obj.id).update(is_active=False)
 
         super().save_model(request, obj, form, change)
-

@@ -201,6 +201,12 @@ class GenerationConfig(models.Model):
 
     default_settings = models.JSONField(blank=True, null=True)
 
+    # ✅ NEW: Credits required for this config
+    credits = models.PositiveIntegerField(
+        default=1,
+        help_text="Credits required to run this generation config"
+    )
+
     # 🔥 CONTROL
     is_active = models.BooleanField(default=True)
 

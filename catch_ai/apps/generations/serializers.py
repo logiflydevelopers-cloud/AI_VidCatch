@@ -283,3 +283,5 @@ class GenerationHistorySerializer(serializers.ModelSerializer):
         if obj.result_type == "image":
             return obj.result_url
         return None
+    
+
