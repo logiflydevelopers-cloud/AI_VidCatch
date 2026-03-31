@@ -1,7 +1,6 @@
 import requests
 import traceback
 import json
-
 from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
@@ -94,6 +93,14 @@ def run_generation(self, generation_id, payload):
 
             if not image:
                 raise Exception("Image is required for auto video")
+            
+            settings_data = config.default_settings
+
+            if isinstance(settings_data, str):
+                settings_data = json.loads(settings_data)
+
+            if not isinstance(settings_data, dict):
+                raise Exception("Invalid settings in DB")
 
             # 🔥 Build payload from admin config
             payload = {
@@ -105,8 +112,10 @@ def run_generation(self, generation_id, payload):
                     "images": [image],
                     "prompt": config.prompt_template
                 },
-                "settings": config.default_settings or {}
+                "settings": settings_data
             }
+
+            logger.info(f"FINAL PAYLOAD: {json.dumps(payload, indent=2)}")
 
 
         # ============================
