@@ -89,7 +89,7 @@ def create_generation(request):
         feature = data.get("feature_obj")
         input_data = data["input_data"]
         user_settings = data.get("settings")
-        quality = data.get("quality")  # optional
+        quality = data.get("quality")
 
         model = None
         feature_key = None
@@ -130,22 +130,42 @@ def create_generation(request):
                         status=400
                     )
 
-                if not feature.model_mapping or quality not in feature.model_mapping:
-                    return Response(
-                        {"error": f"Invalid quality: {quality}"},
-                        status=400
-                    )
-
-                # -------------------------
-                # MODEL MAPPING
-                # -------------------------
                 if not feature.model_mapping:
                     return Response(
                         {"error": "Model mapping not configured"},
                         status=400
                     )
 
-                model_id = feature.model_mapping.get(quality)
+                # =========================================
+                # ✅ GET VALID MODES (FIXED)
+                # =========================================
+                valid_modes = set()
+
+                if feature.feature_type == "image_to_video":
+                    for group in feature.model_mapping.values():
+                        if isinstance(group, dict):
+                            valid_modes.update(group.keys())
+                else:
+                    valid_modes = set(feature.model_mapping.keys())
+
+                if quality not in valid_modes:
+                    return Response(
+                        {"error": f"Invalid quality: {quality}. Allowed: {list(valid_modes)}"},
+                        status=400
+                    )
+
+                # =========================================
+                # ✅ MODEL SELECTION (FIXED)
+                # =========================================
+                model_id = None
+
+                if feature.feature_type == "image_to_video":
+                    for group in feature.model_mapping.values():
+                        if isinstance(group, dict) and quality in group:
+                            model_id = group.get(quality)
+                            break
+                else:
+                    model_id = feature.model_mapping.get(quality)
 
                 if not model_id:
                     return Response(
@@ -161,24 +181,23 @@ def create_generation(request):
                         status=400
                     )
 
-                # safety
                 if model not in feature.allowed_models.all():
                     return Response(
                         {"error": "Model not allowed for this feature"},
                         status=400
                     )
 
-                # -------------------------
-                # CREDIT (mode-based)
-                # -------------------------
+                # =========================================
+                # CREDIT
+                # =========================================
                 if feature.credits_config and quality in feature.credits_config:
                     credit_cost = feature.credits_config.get(quality, 1)
                 else:
                     credit_cost = feature.credit_cost or 1
 
-                # -------------------------
-                # SETTINGS VALIDATION
-                # -------------------------
+                # =========================================
+                # SETTINGS
+                # =========================================
                 try:
                     settings = validate_feature_settings(
                         feature,
@@ -211,7 +230,6 @@ def create_generation(request):
                     )
 
                 model = feature.default_model
-
                 credit_cost = feature.credit_cost or 1
                 model_provider = getattr(model, "provider", None)
 
@@ -260,7 +278,6 @@ def create_generation(request):
                 input_data=final_input_data,
                 status="pending",
 
-                # snapshot
                 model_name=model.model_name,
                 feature_type=feature_key,
                 model_provider=model_provider,
@@ -273,9 +290,6 @@ def create_generation(request):
                 )
             )
 
-            # ============================
-            # TRACK MODEL USAGE
-            # ============================
             model.track_usage()
 
             task = run_generation.delay(generation.id, payload)
@@ -298,7 +312,6 @@ def create_generation(request):
             {"error": str(e)},
             status=500
         )
-
 
 # ==========================================================
 # GET GENERATION STATUS
