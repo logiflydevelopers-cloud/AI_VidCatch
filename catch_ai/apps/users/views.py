@@ -19,6 +19,8 @@ from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes, force_str
 from apps.credits.models import UserCredits
+from apps.generations.models import Generation
+from apps.subscriptions.models import UserSubscription
 
 User = get_user_model()
 
@@ -249,3 +251,39 @@ def reset_password(request):
     return Response({
         "message": "Password reset successful"
     }, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def credit_history(request):
+    try:
+        user = request.user
+
+        history = []
+
+        # 🔹 CREDIT USED (Generation)
+        generations = Generation.objects.filter(user=user)
+
+        for item in generations:
+            history.append({
+                "title": "AI generate succeed",
+                "date": item.created_at,
+                "amount": -item.credit_used
+            })
+
+        # 🔹 CREDIT ADDED (Purchase / Plan)
+        plans = UserSubscription.objects.filter(user=user)
+
+        for item in plans:
+            history.append({
+                "title": "Membership benefits",
+                "date": item.created_at,
+                "amount": item.credits_added
+            })
+
+        # 🔹 SORT DESC (latest first)
+        history = sorted(history, key=lambda x: x["date"], reverse=True)
+
+        return Response(history)
+
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
