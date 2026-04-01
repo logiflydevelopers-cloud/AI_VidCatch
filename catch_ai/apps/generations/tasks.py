@@ -125,7 +125,7 @@ def run_generation(self, generation_id, payload):
         response = requests.post(
             FASTAPI_GENERATE_URL,
             json=payload,
-            timeout=300
+            timeout=600
         )
 
         try:
