@@ -4,21 +4,54 @@ from apps.templates.models import Template, GenerationConfig
 from apps.features.models import Features
 
 
+# ==========================================================
+# 🔥 HELPER: GET VALID MODES
+# ==========================================================
+def get_valid_modes(feature):
+    if not feature.model_mapping:
+        return set()
+
+    # nested (image_to_video)
+    if feature.feature_type == "image_to_video":
+        modes = set()
+        for group in feature.model_mapping.values():
+            if isinstance(group, dict):
+                modes.update(group.keys())
+        return modes
+
+    # flat
+    return set(feature.model_mapping.keys())
+
+
+# ==========================================================
+# 🔥 HELPER: GET DEFAULT MODE
+# ==========================================================
+def get_default_mode(feature):
+    if not feature.model_mapping:
+        return None
+
+    if feature.feature_type == "image_to_video":
+        first_group = next(iter(feature.model_mapping.values()), {})
+        return next(iter(first_group.keys()), "fast")
+
+    return next(iter(feature.model_mapping.keys()), "fast")
+
+
+# ==========================================================
+# MAIN SERIALIZER
+# ==========================================================
 class GenerateSerializer(serializers.Serializer):
 
-    # 🔥 REQUIRED FOR AUTO MODE
     source_type = serializers.CharField(required=False)
 
     template_id = serializers.CharField(required=False)
     feature_id = serializers.CharField(required=False)
 
-    # optional (future use)
     model_id = serializers.CharField(required=False)
 
     input_data = serializers.JSONField()
     settings = serializers.JSONField(required=False)
 
-    # dynamic quality
     quality = serializers.CharField(required=False)
 
     def validate(self, data):
@@ -78,7 +111,7 @@ class GenerateSerializer(serializers.Serializer):
         data["feature_obj"] = feature
 
         # =====================================
-        # 🔥 AUTO CONFIG (SETTINGS + PROMPT)
+        # 🔥 AUTO CONFIG
         # =====================================
         if source_type == "auto_video" and feature:
 
@@ -90,11 +123,14 @@ class GenerateSerializer(serializers.Serializer):
             if not config:
                 raise serializers.ValidationError("Auto video config not found")
 
-            # ---------- SETTINGS ----------
             db_settings = config.default_settings or {}
 
-            # ✅ Only allow valid keys (avoid FastAPI errors)
-            allowed_settings = ["duration", "resolution", "aspect_ratio", "generate_audio"]
+            allowed_settings = [
+                "duration",
+                "resolution",
+                "aspect_ratio",
+                "generate_audio"
+            ]
 
             filtered_settings = {
                 k: v for k, v in db_settings.items() if k in allowed_settings
@@ -102,7 +138,6 @@ class GenerateSerializer(serializers.Serializer):
 
             data["settings"] = {**filtered_settings, **(settings or {})}
 
-            # ---------- PROMPT ----------
             prompt = config.prompt_template
 
             if not prompt:
@@ -111,15 +146,16 @@ class GenerateSerializer(serializers.Serializer):
             data["input_data"]["prompt"] = prompt
 
         # =====================================
-        # 🔥 QUALITY LOGIC
+        # 🔥 QUALITY LOGIC (FIXED)
         # =====================================
         if feature:
 
             if feature.model_mapping:
 
+                valid_modes = get_valid_modes(feature)
+
                 if source_type == "auto_video":
-                    # ✅ safe default (first key)
-                    data["quality"] = list(feature.model_mapping.keys())[2]
+                    data["quality"] = get_default_mode(feature)
 
                 else:
                     if not quality:
@@ -127,9 +163,9 @@ class GenerateSerializer(serializers.Serializer):
                             "quality": "This field is required"
                         })
 
-                    if quality not in feature.model_mapping:
+                    if quality not in valid_modes:
                         raise serializers.ValidationError({
-                            "quality": f"{quality} is not a valid choice"
+                            "quality": f"{quality} is not valid. Allowed: {list(valid_modes)}"
                         })
 
             else:
@@ -187,49 +223,37 @@ class GenerateSerializer(serializers.Serializer):
         data["input_data"] = clean_input
 
         return data
-    
+
+
+# ==========================================================
+# GENERATION SERIALIZER
+# ==========================================================
 class GenerationSerializer(serializers.ModelSerializer):
 
     template_name = serializers.SerializerMethodField()
     feature_name = serializers.SerializerMethodField()
-
     processing_time = serializers.SerializerMethodField()
 
     class Meta:
         model = Generation
-
         fields = [
             "job_id",
-
-            # source
             "source_type",
             "template",
             "template_name",
             "feature",
             "feature_name",
-
-            # status
             "status",
             "error_message",
-
-            # result
             "result_url",
             "result_type",
-
-            # metadata
             "model_name",
             "feature_type",
             "model_provider",
             "credit_used",
-
-            # input
             "input_data",
-
-            # optional debug
             "request_payload",
             "response_payload",
-
-            # timestamps
             "created_at",
             "completed_at",
             "processing_time",
@@ -245,7 +269,11 @@ class GenerationSerializer(serializers.ModelSerializer):
         return obj.processing_time
 
 
+# ==========================================================
+# HISTORY SERIALIZER
+# ==========================================================
 class GenerationHistorySerializer(serializers.ModelSerializer):
+
     name = serializers.SerializerMethodField()
     thumbnail = serializers.SerializerMethodField()
 
@@ -266,22 +294,15 @@ class GenerationHistorySerializer(serializers.ModelSerializer):
         ]
 
     def get_name(self, obj):
-        # Priority: input_summary > template > feature
         if obj.input_summary:
             return obj.input_summary
-
         if obj.template:
             return obj.template.name
-
         if obj.feature:
             return obj.feature.name
-
         return "Untitled"
 
     def get_thumbnail(self, obj):
-        # Optional: frontend preview
         if obj.result_type == "image":
             return obj.result_url
         return None
-    
-
