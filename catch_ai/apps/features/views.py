@@ -13,17 +13,19 @@ SPECIAL_FEATURES = ["text_to_video", "image_to_video", "colorize"]
 # ==========================================================
 def get_feature_models(feature):
 
-    # Special features (video + colorize)
-    if feature.feature_type in SPECIAL_FEATURES and feature.model_mapping:
+    # =========================================
+    # ✅ SPECIAL CASE: IMAGE TO VIDEO (NESTED)
+    # =========================================
+    if feature.feature_type == "image_to_video" and feature.model_mapping:
 
         data = {}
+        model_ids = []
 
-        # NO int conversion (IDs are strings)
-        model_ids = [
-            v for v in feature.model_mapping.values() if v
-        ]
+        # collect all model ids (nested)
+        for value in feature.model_mapping.values():
+            if isinstance(value, dict):
+                model_ids.extend([v for v in value.values() if v])
 
-        # Query works with string IDs
         models = AIModel.objects.filter(
             id__in=model_ids,
             is_active=True
@@ -31,14 +33,47 @@ def get_feature_models(feature):
 
         model_map = {m.id: m for m in models}
 
-        # Build response
+        # build nested response
+        for group_key, modes in feature.model_mapping.items():
+
+            data[group_key] = {}
+
+            if isinstance(modes, dict):
+                for mode, model_id in modes.items():
+
+                    model = model_map.get(model_id)
+
+                    data[group_key][mode] = {
+                        "id": model.id,
+                        "name": model.name
+                    } if model else None
+
+        return data
+
+    # =========================================
+    # ✅ EXISTING LOGIC (UNCHANGED)
+    # =========================================
+    if feature.feature_type in SPECIAL_FEATURES and feature.model_mapping:
+
+        data = {}
+
+        model_ids = [
+            v for v in feature.model_mapping.values() if v
+        ]
+
+        models = AIModel.objects.filter(
+            id__in=model_ids,
+            is_active=True
+        )
+
+        model_map = {m.id: m for m in models}
+
         for key, model_id in feature.model_mapping.items():
 
             if not model_id:
                 data[key] = None
                 continue
 
-            # NO int conversion
             model = model_map.get(model_id)
 
             if model:
@@ -51,9 +86,9 @@ def get_feature_models(feature):
 
         return data
 
-    # -----------------------------
-    # Normal features (fallback)
-    # -----------------------------
+    # =========================================
+    # NORMAL FEATURES
+    # =========================================
     return [
         {
             "id": m.id,

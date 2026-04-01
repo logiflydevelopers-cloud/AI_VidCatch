@@ -10,6 +10,7 @@ from apps.services.firebase_storage import upload_file
 
 from apps.credits.models import UserCredits, CreditTransaction
 from .models import GenerationConfig
+from django.db import models
 
 # optional delete
 try:
@@ -190,27 +191,50 @@ class TemplateAdmin(admin.ModelAdmin):
 # ==========================================================
 class FeatureAdminForm(forms.ModelForm):
 
+    # -----------------------------
+    # MULTI MODE
+    # -----------------------------
     fast_model = forms.ModelChoiceField(queryset=AIModel.objects.none(), required=False)
     standard_model = forms.ModelChoiceField(queryset=AIModel.objects.none(), required=False)
     advanced_model = forms.ModelChoiceField(queryset=AIModel.objects.none(), required=False)
 
+    # -----------------------------
+    # COLORIZE
+    # -----------------------------
     bw_color_model = forms.ModelChoiceField(queryset=AIModel.objects.none(), required=False)
     recolor_model = forms.ModelChoiceField(queryset=AIModel.objects.none(), required=False)
 
+    # -----------------------------
+    # IMAGE TO VIDEO
+    # -----------------------------
+    one_fast_model = forms.ModelChoiceField(queryset=AIModel.objects.none(), required=False)
+    one_standard_model = forms.ModelChoiceField(queryset=AIModel.objects.none(), required=False)
+    one_advanced_model = forms.ModelChoiceField(queryset=AIModel.objects.none(), required=False)
+
+    two_fast_model = forms.ModelChoiceField(queryset=AIModel.objects.none(), required=False)
+    two_standard_model = forms.ModelChoiceField(queryset=AIModel.objects.none(), required=False)
+    two_advanced_model = forms.ModelChoiceField(queryset=AIModel.objects.none(), required=False)
+
     class Meta:
         model = Features
-        exclude = ("model_mapping",)   # ✅ IMPORTANT
+        exclude = ("model_mapping",)
         widgets = {
             "input_schema": JSONEditorWidget,
             "credits_config": JSONEditorWidget,
         }
 
+    # ==========================================================
+    # INIT
+    # ==========================================================
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         print("\n====== INIT START ======")
         print("RAW DATA:", self.data)
 
+        # -----------------------------
+        # QUERYSET
+        # -----------------------------
         if self.data.get("allowed_models"):
             qs = AIModel.objects.filter(id__in=self.data.getlist("allowed_models"))
         elif self.instance and self.instance.pk:
@@ -218,25 +242,55 @@ class FeatureAdminForm(forms.ModelForm):
         else:
             qs = AIModel.objects.filter(is_active=True)
 
-        for field in ["fast_model", "standard_model", "advanced_model", "bw_color_model", "recolor_model"]:
-            self.fields[field].queryset = qs
+        for field in [
+            "fast_model", "standard_model", "advanced_model",
+            "bw_color_model", "recolor_model",
+            "one_fast_model", "one_standard_model", "one_advanced_model",
+            "two_fast_model", "two_standard_model", "two_advanced_model",
+        ]:
+            if field in self.fields:
+                self.fields[field].queryset = qs
 
+        # -----------------------------
+        # INITIAL VALUES
+        # -----------------------------
         mapping = getattr(self.instance, "model_mapping", {}) or {}
         print("Initial mapping:", mapping)
 
-        if mapping:
+        feature_type = self.data.get("feature_type") or getattr(self.instance, "feature_type", None)
+
+        # COLORIZE INITIAL
+        if mapping and feature_type == "colorize":
             self.fields["bw_color_model"].initial = qs.filter(id=mapping.get("bw_color")).first()
             self.fields["recolor_model"].initial = qs.filter(id=mapping.get("recolor")).first()
 
-        feature_type = self.data.get("feature_type") or getattr(self.instance, "feature_type", None)
+        # IMAGE TO VIDEO INITIAL
+        if mapping and feature_type == "image_to_video":
+            one = mapping.get("one_image", {})
+            two = mapping.get("two_image", {})
+
+            if one:
+                self.fields["one_fast_model"].initial = qs.filter(id=one.get("fast")).first()
+                self.fields["one_standard_model"].initial = qs.filter(id=one.get("standard")).first()
+                self.fields["one_advanced_model"].initial = qs.filter(id=one.get("advanced")).first()
+
+            if two:
+                self.fields["two_fast_model"].initial = qs.filter(id=two.get("fast")).first()
+                self.fields["two_standard_model"].initial = qs.filter(id=two.get("standard")).first()
+                self.fields["two_advanced_model"].initial = qs.filter(id=two.get("advanced")).first()
+
         print("Feature Type INIT:", feature_type)
 
         is_multi_mode = (
             self.data.get("is_multi_mode") in ["on", "true", True]
             or (self.instance and self.instance.is_multi_mode)
         )
+
         print("Is Multi Mode INIT:", is_multi_mode)
 
+        # -----------------------------
+        # FIELD VISIBILITY
+        # -----------------------------
         if not is_multi_mode:
             self.fields.pop("fast_model", None)
             self.fields.pop("standard_model", None)
@@ -246,21 +300,62 @@ class FeatureAdminForm(forms.ModelForm):
             self.fields.pop("bw_color_model", None)
             self.fields.pop("recolor_model", None)
 
+        if feature_type != "image_to_video":
+            for field in [
+                "one_fast_model", "one_standard_model", "one_advanced_model",
+                "two_fast_model", "two_standard_model", "two_advanced_model",
+            ]:
+                self.fields.pop(field, None)
+
         print("====== INIT END ======\n")
 
+    # ==========================================================
+    # CLEAN
+    # ==========================================================
     def clean(self):
         cleaned_data = super().clean()
-        allowed_models = cleaned_data.get("allowed_models") or []
-        allowed_ids = [m.id for m in allowed_models]
-
 
         feature_type = self.instance.feature_type
         is_multi_mode = cleaned_data.get("is_multi_mode")
 
         # -----------------------------
+        # IMAGE TO VIDEO (NEW)
+        # -----------------------------
+        if feature_type == "image_to_video":
+            print(">>> ENTER IMAGE TO VIDEO MODE")
+
+            def build_group(prefix):
+                fast = cleaned_data.get(f"{prefix}_fast_model")
+                standard = cleaned_data.get(f"{prefix}_standard_model")
+                advanced = cleaned_data.get(f"{prefix}_advanced_model")
+
+                data = {}
+
+                if fast:
+                    data["fast"] = str(fast.id)
+                if standard:
+                    data["standard"] = str(standard.id)
+                if advanced:
+                    data["advanced"] = str(advanced.id)
+
+                return data if data else None
+
+            one_image = build_group("one")
+            two_image = build_group("two")
+
+            mapping = {}
+
+            if one_image:
+                mapping["one_image"] = one_image
+            if two_image:
+                mapping["two_image"] = two_image
+
+            self.instance.model_mapping = mapping if mapping else None
+
+        # -----------------------------
         # MULTI MODE
         # -----------------------------
-        if is_multi_mode:
+        elif is_multi_mode:
             print(">>> ENTER MULTI MODE")
 
             fast = cleaned_data.get("fast_model")
@@ -275,7 +370,7 @@ class FeatureAdminForm(forms.ModelForm):
                 }
 
         # -----------------------------
-        # COLORIZE MODE
+        # COLORIZE
         # -----------------------------
         elif feature_type == "colorize":
             print(">>> ENTER COLORIZE MODE")
@@ -284,14 +379,10 @@ class FeatureAdminForm(forms.ModelForm):
             recolor = cleaned_data.get("recolor_model")
 
             if bw and recolor:
-                print("Setting COLORIZE mapping...")
-
-                mapping = {
+                self.instance.model_mapping = {
                     "bw_color": str(bw.id),
                     "recolor": str(recolor.id),
                 }
-
-                self.instance.model_mapping = mapping
 
         # -----------------------------
         # NORMAL
@@ -301,6 +392,9 @@ class FeatureAdminForm(forms.ModelForm):
 
         return cleaned_data
 
+    # ==========================================================
+    # SAVE
+    # ==========================================================
     def save(self, commit=True):
         instance = super().save(commit=False)
 
@@ -315,13 +409,14 @@ class FeatureAdminForm(forms.ModelForm):
         print("====== FORM SAVE END ======\n")
 
         return instance
-
+    
 class FeatureSettingInline(admin.TabularInline):
     model = FeatureSetting
     extra = 1
     ordering = ("mode", "display_order")
 
     fields = (
+        "input_type",   # if you added this field
         "mode",
         "key",
         "type",
@@ -330,7 +425,7 @@ class FeatureSettingInline(admin.TabularInline):
         "is_required",
         "display_order",
     )
-
+    
 # ==========================================================
 # FEATURE ADMIN
 # ==========================================================
@@ -340,44 +435,98 @@ class FeaturesAdmin(admin.ModelAdmin):
     form = FeatureAdminForm
     inlines = [FeatureSettingInline]
 
-    def get_fields(self, request, obj=None):
-        base_fields = [
-            "id",
-            "name",
-            "feature_type",
-            "is_multi_mode",
-            "credit_cost",
-            "fast_credit_cost",
-            "standard_credit_cost",
-            "advanced_credit_cost",
-            "credits_config",
-            "allowed_models",
-            "default_model",
-            "is_premium",
-            "is_active",
-            "created_at",
-            "updated_at",
+    # ==========================================================
+    # FIELDSETS (CLEAN UI)
+    # ==========================================================
+    def get_fieldsets(self, request, obj=None):
+
+        fieldsets = [
+            ("Basic Info", {
+                "fields": (
+                    "id",
+                    "name",
+                    "feature_type",
+                    "is_multi_mode",
+                    "allowed_models",
+                    "default_model",
+                    "is_premium",
+                    "is_active",
+                )
+            }),
+
+            ("Credits", {
+                "fields": (
+                    "credit_cost",
+                    "fast_credit_cost",
+                    "standard_credit_cost",
+                    "advanced_credit_cost",
+                    "credits_config",
+                )
+            }),
         ]
+
+        # -----------------------------
+        # IMAGE TO VIDEO (NEW)
+        # -----------------------------
+        if obj and obj.feature_type == "image_to_video":
+            fieldsets.append(("One Image Models", {
+                "fields": (
+                    "one_fast_model",
+                    "one_standard_model",
+                    "one_advanced_model",
+                )
+            }))
+            fieldsets.append(("Two Image Models", {
+                "fields": (
+                    "two_fast_model",
+                    "two_standard_model",
+                    "two_advanced_model",
+                )
+            }))
 
         # -----------------------------
         # MULTI MODE
         # -----------------------------
-        if obj and obj.is_multi_mode:
-            base_fields += ["fast_model", "standard_model", "advanced_model"]
+        elif obj and obj.is_multi_mode:
+            fieldsets.append(("Modes", {
+                "fields": (
+                    "fast_model",
+                    "standard_model",
+                    "advanced_model",
+                )
+            }))
 
         # -----------------------------
         # COLORIZE MODE
         # -----------------------------
         if obj and obj.feature_type == "colorize":
-            base_fields += ["bw_color_model", "recolor_model"]
+            fieldsets.append(("Colorize Models", {
+                "fields": (
+                    "bw_color_model",
+                    "recolor_model",
+                )
+            }))
 
-        return base_fields
+        # -----------------------------
+        # META
+        # -----------------------------
+        fieldsets.append(("Meta", {
+            "fields": (
+                "created_at",
+                "updated_at",
+            )
+        }))
 
+        return fieldsets
+
+    # ==========================================================
+    # LIST VIEW
+    # ==========================================================
     list_display = (
         "id",
         "name",
         "feature_type",
-        "is_multi_mode",  
+        "is_multi_mode",
         "fast_credit_cost",
         "standard_credit_cost",
         "advanced_credit_cost",
@@ -390,6 +539,9 @@ class FeaturesAdmin(admin.ModelAdmin):
     filter_horizontal = ("allowed_models",)
     ordering = ("display_order",)
 
+    # ==========================================================
+    # READ ONLY
+    # ==========================================================
     def get_readonly_fields(self, request, obj=None):
         if obj:
             return (
@@ -400,12 +552,18 @@ class FeaturesAdmin(admin.ModelAdmin):
             )
         return ("id", "created_at", "updated_at")
 
+    # ==========================================================
+    # PERMISSIONS
+    # ==========================================================
     def has_add_permission(self, request):
         return False
 
     def has_delete_permission(self, request, obj=None):
         return False
 
+    # ==========================================================
+    # QUERYSET FILTERS
+    # ==========================================================
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "default_model":
             kwargs["queryset"] = AIModel.objects.filter(is_active=True)
@@ -415,6 +573,7 @@ class FeaturesAdmin(admin.ModelAdmin):
         if db_field.name == "allowed_models":
             kwargs["queryset"] = AIModel.objects.filter(is_active=True)
         return super().formfield_for_manytomany(db_field, request, **kwargs)
+    
 
 # ==========================================================
 # USER CREDITS ADMIN

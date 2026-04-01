@@ -84,6 +84,17 @@ class Features(models.Model):
 # ==========================================================
 class FeatureSetting(models.Model):
 
+    # -----------------------------
+    # INPUT TYPE (NEW)
+    # -----------------------------
+    INPUT_TYPE_CHOICES = (
+        ("one_image", "One Image"),
+        ("two_image", "Two Image"),
+    )
+
+    # -----------------------------
+    # MODE (EXISTING)
+    # -----------------------------
     MODE_CHOICES = (
         ("fast", "Fast"),
         ("standard", "Standard"),
@@ -96,7 +107,18 @@ class FeatureSetting(models.Model):
         related_name="settings"
     )
 
-    mode = models.CharField(max_length=20, choices=MODE_CHOICES)
+    input_type = models.CharField(
+        max_length=20,
+        choices=INPUT_TYPE_CHOICES,
+        null=True,
+        blank=True
+    )
+
+    # fast / standard / advanced
+    mode = models.CharField(
+        max_length=20,
+        choices=MODE_CHOICES
+    )
 
     # duration, aspect_ratio, resolution, generate_audio
     key = models.CharField(max_length=100)
@@ -114,8 +136,9 @@ class FeatureSetting(models.Model):
     display_order = models.IntegerField(default=0)
 
     class Meta:
-        unique_together = ("feature", "mode", "key")
-        ordering = ("mode", "display_order")
+        unique_together = ("feature", "input_type", "mode", "key")
+
+        ordering = ("input_type", "mode", "display_order")
 
     def __str__(self):
-        return f"{self.feature.name} - {self.mode} - {self.key}"
+        return f"{self.feature.name} - {self.input_type or 'default'} - {self.mode} - {self.key}"
