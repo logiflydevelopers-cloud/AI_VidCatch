@@ -257,30 +257,56 @@ def reset_password(request):
 def credit_history(request):
     try:
         user = request.user
-
         history = []
 
-        # 🔹 CREDIT USED (Generation)
+        # ==========================
+        # 🔹 AI GENERATED (DEBIT)
+        # ==========================
         generations = Generation.objects.filter(user=user)
 
         for item in generations:
+            if item.credit_used > 0:
+                history.append({
+                    "title": "AI generate succeed",
+                    "date": item.created_at,
+                    "amount": -item.credit_used,
+                    "type": "debit"
+                })
+
+        # ==========================
+        # 🔹 MEMBERSHIP (CREDIT)
+        # ==========================
+        subs = UserSubscription.objects.filter(
+            user=user,
+            status="active"
+        ).select_related("current_plan")
+
+        has_subscription = subs.exists()
+
+        for sub in subs:
+            if sub.current_plan and sub.current_plan.credits_per_month > 0:
+                history.append({
+                    "title": "Membership benefits",
+                    "date": sub.created_at,
+                    "amount": sub.current_plan.credits_per_month,
+                    "plan_name": sub.current_plan.name,
+                    "type": "credit"
+                })
+
+        # ==========================
+        # 🔹 FREE CREDITS (IF NO PLAN)
+        # ==========================
+        if not has_subscription:
             history.append({
-                "title": "AI generate succeed",
-                "date": item.created_at,
-                "amount": -item.credit_used
+                "title": "Free credits",
+                "date": user.created_at,  # or timezone.now()
+                "amount": 1000,  # 🔥 change based on your logic
+                "type": "credit"
             })
 
-        # 🔹 CREDIT ADDED (Purchase / Plan)
-        plans = UserSubscription.objects.filter(user=user)
-
-        for item in plans:
-            history.append({
-                "title": "Membership benefits",
-                "date": item.created_at,
-                "amount": item.credits_added
-            })
-
-        # 🔹 SORT DESC (latest first)
+        # ==========================
+        # 🔹 SORT (LATEST FIRST)
+        # ==========================
         history = sorted(history, key=lambda x: x["date"], reverse=True)
 
         return Response(history)
