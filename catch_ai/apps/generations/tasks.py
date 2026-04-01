@@ -228,6 +228,8 @@ def run_generation(self, generation_id, payload):
             generation.save()
 
 
+
+
 @shared_task
 def delete_old_generations():
     logger.info("🟡 Task started: delete_old_generations")

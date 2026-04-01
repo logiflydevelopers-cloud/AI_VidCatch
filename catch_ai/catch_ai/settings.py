@@ -206,6 +206,7 @@ FIREBASE_STORAGE_BUCKET = "ai-vidcatch.firebasestorage.app"
 
 FASTAPI_GENERATE_URL = "https://iv-models.onrender.com/ai/generate"
 FASTAPI_MODEL_REGISTRY_URL = "https://iv-models.onrender.com/ai/models/registry"
+FASTAPI_STATUS_URL = "https://iv-models.onrender.com/ai/status"
 
 CELERY_BROKER_URL = os.getenv("REDIS_URL")
 CELERY_RESULT_BACKEND = os.getenv("REDIS_URL")
