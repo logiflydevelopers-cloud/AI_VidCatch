@@ -40,7 +40,6 @@ def deduct_credits(user, amount, description="", template=None, feature=None):
 
     before = wallet.balance
 
-    # CRITICAL: update BOTH
     wallet.balance -= amount
     wallet.used_credits += amount
 

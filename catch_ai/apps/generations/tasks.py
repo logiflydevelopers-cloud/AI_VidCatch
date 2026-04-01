@@ -111,7 +111,7 @@ def run_generation(self, generation_id, payload):
                 "feature": config.feature_type,
                 "model": config.model.code,
                 "inputs": {
-                    "image_1": image,   # ✅ FIXED (IMPORTANT)
+                    "image_urls": [image],   # ✅ FIXED (IMPORTANT)
                     "prompt": config.prompt_template
                 },
                 "settings": settings_data

@@ -260,7 +260,7 @@ def credit_history(request):
         history = []
 
         # ==========================
-        # 🔹 AI GENERATED (DEBIT)
+        # AI GENERATED (DEBIT)
         # ==========================
         generations = Generation.objects.filter(user=user)
 
@@ -274,7 +274,7 @@ def credit_history(request):
                 })
 
         # ==========================
-        # 🔹 CHECK SUBSCRIPTION
+        # CHECK SUBSCRIPTION
         # ==========================
         sub = UserSubscription.objects.filter(
             user=user,
@@ -282,22 +282,20 @@ def credit_history(request):
         ).select_related("current_plan").first()
 
         # ==========================
-        # 🔹 MEMBERSHIP + FREE LOGIC
+        # MEMBERSHIP + FREE LOGIC
         # ==========================
         if sub and sub.current_plan:
-            # ✅ USER HAS PLAN
             membership_credits = sub.current_plan.credits_per_month
             free_credits = 0
             plan_name = sub.current_plan.name
             date = sub.created_at
         else:
-            # ❌ NO PLAN
             membership_credits = 0
             free_credits = 1000  
             plan_name = None
             date = user.created_at
 
-        # 🔹 MEMBERSHIP ENTRY (ALWAYS)
+        # MEMBERSHIP ENTRY (ALWAYS)
         history.append({
             "title": "Membership benefits",
             "date": date,
@@ -306,7 +304,7 @@ def credit_history(request):
             "type": "credit"
         })
 
-        # 🔹 FREE CREDITS ENTRY (ALWAYS)
+        # FREE CREDITS ENTRY (ALWAYS)
         history.append({
             "title": "Free credits",
             "date": date,
@@ -315,7 +313,7 @@ def credit_history(request):
         })
 
         # ==========================
-        # 🔹 SORT (LATEST FIRST)
+        # SORT (LATEST FIRST)
         # ==========================
         history = sorted(history, key=lambda x: x["date"], reverse=True)
 
