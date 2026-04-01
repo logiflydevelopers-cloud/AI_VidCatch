@@ -274,35 +274,45 @@ def credit_history(request):
                 })
 
         # ==========================
-        # 🔹 MEMBERSHIP (CREDIT)
+        # 🔹 CHECK SUBSCRIPTION
         # ==========================
-        subs = UserSubscription.objects.filter(
+        sub = UserSubscription.objects.filter(
             user=user,
             status="active"
-        ).select_related("current_plan")
-
-        has_subscription = subs.exists()
-
-        for sub in subs:
-            if sub.current_plan and sub.current_plan.credits_per_month > 0:
-                history.append({
-                    "title": "Membership benefits",
-                    "date": sub.created_at,
-                    "amount": sub.current_plan.credits_per_month,
-                    "plan_name": sub.current_plan.name,
-                    "type": "credit"
-                })
+        ).select_related("current_plan").first()
 
         # ==========================
-        # 🔹 FREE CREDITS (IF NO PLAN)
+        # 🔹 MEMBERSHIP + FREE LOGIC
         # ==========================
-        if not has_subscription:
-            history.append({
-                "title": "Free credits",
-                "date": user.created_at,  # or timezone.now()
-                "amount": 1000,  # 🔥 change based on your logic
-                "type": "credit"
-            })
+        if sub and sub.current_plan:
+            # ✅ USER HAS PLAN
+            membership_credits = sub.current_plan.credits_per_month
+            free_credits = 0
+            plan_name = sub.current_plan.name
+            date = sub.created_at
+        else:
+            # ❌ NO PLAN
+            membership_credits = 0
+            free_credits = 1000  
+            plan_name = None
+            date = user.created_at
+
+        # 🔹 MEMBERSHIP ENTRY (ALWAYS)
+        history.append({
+            "title": "Membership benefits",
+            "date": date,
+            "amount": membership_credits,
+            "plan_name": plan_name,
+            "type": "credit"
+        })
+
+        # 🔹 FREE CREDITS ENTRY (ALWAYS)
+        history.append({
+            "title": "Free credits",
+            "date": date,
+            "amount": free_credits,
+            "type": "credit"
+        })
 
         # ==========================
         # 🔹 SORT (LATEST FIRST)
