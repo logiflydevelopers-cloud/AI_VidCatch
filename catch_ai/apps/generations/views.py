@@ -137,7 +137,7 @@ def create_generation(request):
                     )
 
                 # =========================================
-                # ✅ GET VALID MODES (FIXED)
+                # GET VALID MODES
                 # =========================================
                 valid_modes = set()
 
@@ -155,7 +155,7 @@ def create_generation(request):
                     )
 
                 # =========================================
-                # ✅ MODEL SELECTION (FIXED)
+                # MODEL SELECTION
                 # =========================================
                 model_id = None
 

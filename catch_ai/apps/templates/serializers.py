@@ -31,7 +31,8 @@ class TemplateSerializer(serializers.ModelSerializer):
             "prompt_template",
             "input_schema",
             "default_settings",
-            "category"
+            "category",
+            "label"
         ]
 
 

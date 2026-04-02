@@ -58,7 +58,7 @@ def deduct_credits_for_template(request):
 
         wallet.refresh_from_db()
 
-        # ✅ SAFE calculation
+        # SAFE calculation
         remaining = wallet.total_credits - wallet.used_credits
 
         if remaining < cost:
@@ -68,16 +68,16 @@ def deduct_credits_for_template(request):
                 "remaining": remaining
             }, status=400)
 
-        # ✅ Deduct safely
+        # Deduct safely
         wallet.used_credits = F("used_credits") + cost
         wallet.save(allow_used_update=True)
 
-        # ✅ Reload actual values
+        # Reload actual values
         wallet.refresh_from_db()
 
         remaining_after = wallet.total_credits - wallet.used_credits
 
-        # ✅ Log transaction
+        # Log transaction
         CreditTransaction.objects.create(
             user=request.user,
             template=template,

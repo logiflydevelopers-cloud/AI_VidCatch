@@ -68,14 +68,14 @@ class User(AbstractBaseUser, PermissionsMixin):
         db_index=True
     )
 
-    # 🔑 how user registered
+    # how user registered
     login_provider = models.CharField(
         max_length=20,
         choices=LOGIN_CHOICES,
         default="email"
     )
 
-    # 🔑 store google account id
+    # store google account id
     google_id = models.CharField(
         max_length=255,
         null=True,

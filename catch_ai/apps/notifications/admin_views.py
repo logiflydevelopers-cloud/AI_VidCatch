@@ -34,7 +34,7 @@ def get_all_notifications(request):
 def create_notification(request):
     data = request.data.copy()
 
-    # 🔍 DEBUG (remove later)
+    # DEBUG
     print("REQUEST DATA:", data)
     print("FILES:", request.FILES)
 
@@ -57,7 +57,7 @@ def create_notification(request):
             )
 
     # ==========================================================
-    # FIX: DEFAULT VALUES (VERY IMPORTANT)
+    # DEFAULT VALUES
     # ==========================================================
 
     # display_type fix

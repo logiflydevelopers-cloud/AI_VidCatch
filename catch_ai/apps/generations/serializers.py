@@ -5,7 +5,7 @@ from apps.features.models import Features
 
 
 # ==========================================================
-# 🔥 HELPER: GET VALID MODES
+# HELPER: GET VALID MODES
 # ==========================================================
 def get_valid_modes(feature):
     if not feature.model_mapping:
@@ -24,7 +24,7 @@ def get_valid_modes(feature):
 
 
 # ==========================================================
-# 🔥 HELPER: GET DEFAULT MODE
+# HELPER: GET DEFAULT MODE
 # ==========================================================
 def get_default_mode(feature):
     if not feature.model_mapping:
@@ -111,7 +111,7 @@ class GenerateSerializer(serializers.Serializer):
         data["feature_obj"] = feature
 
         # =====================================
-        # 🔥 AUTO CONFIG
+        # AUTO CONFIG
         # =====================================
         if source_type == "auto_video" and feature:
 
@@ -146,7 +146,7 @@ class GenerateSerializer(serializers.Serializer):
             data["input_data"]["prompt"] = prompt
 
         # =====================================
-        # 🔥 QUALITY LOGIC (FIXED)
+        # QUALITY LOGIC
         # =====================================
         if feature:
 

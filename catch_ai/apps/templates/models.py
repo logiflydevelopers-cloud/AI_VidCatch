@@ -54,13 +54,13 @@ class AIModel(models.Model):
 
     provider = models.CharField(max_length=50, blank=True, null=True)
 
-    # 💰 Cost per usage
+    # Cost per usage
     credit_cost = models.PositiveIntegerField(default=1)
 
-    # 🔥 NEW: Usage tracking
+    # Usage tracking
     total_usage_count = models.PositiveIntegerField(default=0)
 
-    # 🔥 NEW: Total credits consumed (analytics)
+    # Total credits consumed (analytics)
     total_credits_used = models.PositiveIntegerField(default=0)
 
     is_active = models.BooleanField(default=True)
@@ -88,7 +88,7 @@ class AIModel(models.Model):
         super().save(*args, **kwargs)
 
     # ============================
-    # USAGE TRACKING METHOD 🔥
+    # USAGE TRACKING METHOD
     # ============================
     def track_usage(self):
         """
@@ -141,6 +141,8 @@ class Template(models.Model):
 
     prompt_template = models.TextField(blank=True, null=True)
 
+    label = models.TextField(blank=True, null=True)
+
     input_schema = models.JSONField()
 
     default_settings = models.JSONField(blank=True, null=True)
@@ -187,7 +189,7 @@ class GenerationConfig(models.Model):
 
     config_type = models.CharField(max_length=50, choices=CONFIG_TYPE_CHOICES)
 
-    # 🔥 CORE LOGIC
+    # CORE LOGIC
     feature_type = models.CharField(max_length=50, choices=FEATURE_CHOICES)
 
     model = models.ForeignKey(
@@ -201,13 +203,13 @@ class GenerationConfig(models.Model):
 
     default_settings = models.JSONField(blank=True, null=True)
 
-    # ✅ NEW: Credits required for this config
+    # Credits required for this config
     credits = models.PositiveIntegerField(
         default=1,
         help_text="Credits required to run this generation config"
     )
 
-    # 🔥 CONTROL
+    # CONTROL
     is_active = models.BooleanField(default=True)
 
     created_at = models.DateTimeField(auto_now_add=True)

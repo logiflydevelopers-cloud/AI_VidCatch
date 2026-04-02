@@ -14,7 +14,7 @@ SPECIAL_FEATURES = ["text_to_video", "image_to_video", "colorize"]
 def get_feature_models(feature):
 
     # =========================================
-    # ✅ SPECIAL CASE: IMAGE TO VIDEO (NESTED)
+    # SPECIAL CASE: IMAGE TO VIDEO
     # =========================================
     if feature.feature_type == "image_to_video" and feature.model_mapping:
 
@@ -51,7 +51,7 @@ def get_feature_models(feature):
         return data
 
     # =========================================
-    # ✅ EXISTING LOGIC (UNCHANGED)
+    # EXISTING LOGIC
     # =========================================
     if feature.feature_type in SPECIAL_FEATURES and feature.model_mapping:
 

@@ -230,18 +230,18 @@ def run_generation(self, generation_id, payload):
 
 @shared_task
 def delete_old_generations():
-    logger.info("🟡 Task started: delete_old_generations")
+    logger.info("Task started: delete_old_generations")
 
     cutoff_date = timezone.now() - timedelta(days=7)
-    logger.info(f"⏳ Cutoff time: {cutoff_date}")
+    logger.info(f"Cutoff time: {cutoff_date}")
 
     queryset = Generation.objects.filter(created_at__lt=cutoff_date)
     total_to_delete = queryset.count()
 
-    logger.info(f"📊 Records to delete: {total_to_delete}")
+    logger.info(f"Records to delete: {total_to_delete}")
 
     deleted_count, _ = queryset.delete()
 
-    logger.info(f"✅ Deleted {deleted_count} old generations")
+    logger.info(f"Deleted {deleted_count} old generations")
 
     return f"Deleted {deleted_count} old generations"

@@ -416,7 +416,7 @@ class FeatureSettingInline(admin.TabularInline):
     ordering = ("mode", "display_order")
 
     fields = (
-        "input_type",   # if you added this field
+        "input_type", 
         "mode",
         "key",
         "type",
@@ -466,7 +466,7 @@ class FeaturesAdmin(admin.ModelAdmin):
         ]
 
         # -----------------------------
-        # IMAGE TO VIDEO (NEW)
+        # IMAGE TO VIDEO 
         # -----------------------------
         if obj and obj.feature_type == "image_to_video":
             fieldsets.append(("One Image Models", {
@@ -665,7 +665,7 @@ class GenerationConfigAdmin(admin.ModelAdmin):
         "config_type",
         "feature_type",
         "model",
-        "credits",   # ✅ ADDED HERE
+        "credits",   
         "is_active",
         "created_at",
     )
@@ -676,7 +676,6 @@ class GenerationConfigAdmin(admin.ModelAdmin):
 
     readonly_fields = ("id", "created_at")
 
-    # ✅ Optional: Better UI grouping
     fieldsets = (
         ("Basic Info", {
             "fields": ("id", "name", "config_type", "feature_type")

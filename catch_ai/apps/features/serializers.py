@@ -48,12 +48,12 @@ class FeatureSerializer(serializers.ModelSerializer):
 
             models_data = {}
 
-            # 🔥 Clean IDs (handle string/int safely)
+            # Clean IDs (handle string/int safely)
             model_ids = [
                 int(v) for v in obj.model_mapping.values() if v
             ]
 
-            # 🔥 Single DB query (optimization)
+            # Single DB query (optimization)
             models = AIModel.objects.filter(
                 id__in=model_ids,
                 is_active=True
@@ -61,7 +61,7 @@ class FeatureSerializer(serializers.ModelSerializer):
 
             model_map = {m.id: m for m in models}
 
-            # 🔥 Build response
+            # Build response
             for key, model_id in obj.model_mapping.items():
 
                 try:
@@ -191,7 +191,7 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         model_mapping = validated_data.pop("model_mapping", None)
 
-        # 👇 handle many-to-many separately
+        # handle many-to-many separately
         allowed_models = validated_data.pop("allowed_models", None)
 
         # remove extra fields
@@ -209,7 +209,7 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
         instance.model_mapping = model_mapping
         instance.save()
 
-        # 👇 NOW set many-to-many
+        # NOW set many-to-many
         if allowed_models is not None:
             instance.allowed_models.set(allowed_models)
 

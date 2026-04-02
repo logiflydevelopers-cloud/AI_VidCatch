@@ -34,7 +34,7 @@ def create_template(request):
         data.pop("preview_media", None)
 
         # ================================
-        # CONVERT model_name / name → id 🔥
+        # CONVERT model_name / name → id
         # ================================
         allowed_inputs = request.data.getlist("allowed_models")
         default_input = request.data.get("default_model")
