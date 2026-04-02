@@ -18,6 +18,17 @@ class Notification(models.Model):
         ("error", "Error"),
     ]
 
+    DISPLAY_TYPE_CHOICES = [
+        ("notification", "Notification"),
+        ("slider", "Slider"),
+        ("both", "Both"),
+    ]
+
+    MEDIA_TYPE_CHOICES = [
+        ("image", "Image"),
+        ("video", "Video"),
+    ]
+
     id = models.CharField(
         primary_key=True,
         max_length=50,
@@ -26,23 +37,39 @@ class Notification(models.Model):
 
     # Core Content
     title = models.CharField(max_length=255)
-    message = models.TextField()
+    message = models.TextField(blank=True, null=True)
+    subtitle = models.CharField(max_length=255, blank=True, null=True)
 
-    # Type of Notification (future scalable)
+    # Type of Notification
     notification_type = models.CharField(
         max_length=20,
         choices=NOTIFICATION_TYPE_CHOICES,
         default="banner"
     )
 
-    # Banner specific styling
+    # Banner styling
     banner_type = models.CharField(
         max_length=20,
         choices=BANNER_TYPE_CHOICES,
         default="info"
     )
 
-    # CTA (Call To Action)
+    media = models.URLField(blank=True, null=True)
+
+    media_type = models.CharField(
+        max_length=10,
+        choices=MEDIA_TYPE_CHOICES,
+        blank=True,
+        null=True
+    )
+
+    display_type = models.CharField(
+        max_length=20,
+        choices=DISPLAY_TYPE_CHOICES,
+        default="notification"
+    )
+
+    # CTA
     cta_text = models.CharField(max_length=100, blank=True, null=True)
     cta_link = models.URLField(blank=True, null=True)
 
@@ -54,7 +81,7 @@ class Notification(models.Model):
     start_time = models.DateTimeField(blank=True, null=True)
     end_time = models.DateTimeField(blank=True, null=True)
 
-    # Targeting (future use)
+    # Targeting
     user_type = models.CharField(
         max_length=50,
         blank=True,
@@ -62,7 +89,7 @@ class Notification(models.Model):
         help_text="e.g. free, premium"
     )
 
-    # Priority (higher shows first)
+    # Priority
     priority = models.IntegerField(default=0)
 
     # Metadata
@@ -76,7 +103,7 @@ class Notification(models.Model):
 
     def is_currently_active(self):
         """
-        Check if notification should be shown now
+        Check if notification/banner should be shown now
         """
         now = timezone.now()
 

@@ -23,6 +23,7 @@ class NotificationSerializer(serializers.ModelSerializer):
             "priority",
             "is_currently_active",
             "created_at",
+            "media"
         ]
 
     def get_is_currently_active(self, obj):

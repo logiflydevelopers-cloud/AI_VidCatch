@@ -12,6 +12,7 @@ from .serializers import (
 
 from rest_framework.permissions import IsAdminUser
 from rest_framework.decorators import permission_classes
+from apps.services.firebase_storage import upload_banner_media
 
 
 # Get all notifications
@@ -31,7 +32,61 @@ def get_all_notifications(request):
 @api_view(["POST"])
 @permission_classes([IsAdminUser])
 def create_notification(request):
-    serializer = NotificationCreateUpdateSerializer(data=request.data)
+    data = request.data.copy()
+
+    # 🔍 DEBUG (remove later)
+    print("REQUEST DATA:", data)
+    print("FILES:", request.FILES)
+
+    # ==========================================================
+    # HANDLE MEDIA UPLOAD
+    # ==========================================================
+    file = request.FILES.get("media")
+
+    if file:
+        try:
+            media_url, media_type = upload_banner_media(file)
+
+            data["media"] = media_url
+            data["media_type"] = media_type
+
+        except Exception as e:
+            return Response(
+                {"error": f"Media upload failed: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    # ==========================================================
+    # FIX: DEFAULT VALUES (VERY IMPORTANT)
+    # ==========================================================
+
+    # display_type fix
+    if not data.get("display_type"):
+        data["display_type"] = "notification"
+
+    # notification_type fix
+    if not data.get("notification_type"):
+        data["notification_type"] = "banner"
+
+    # message fix (if optional in future)
+    if not data.get("message"):
+        data["message"] = ""
+
+    # ==========================================================
+    # VALIDATION (OPTIONAL BUT STRONG)
+    # ==========================================================
+    valid_display_types = ["notification", "slider", "both"]
+
+    if data.get("display_type") not in valid_display_types:
+        return Response(
+            {"error": "Invalid display_type"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # ==========================================================
+    # SAVE
+    # ==========================================================
+    serializer = NotificationCreateUpdateSerializer(data=data)
 
     if serializer.is_valid():
         serializer.save()
@@ -41,7 +96,6 @@ def create_notification(request):
         }, status=status.HTTP_201_CREATED)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
 # Update notification
 @api_view(["PUT"])
