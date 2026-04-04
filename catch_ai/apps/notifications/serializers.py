@@ -13,6 +13,7 @@ class NotificationSerializer(serializers.ModelSerializer):
             "message",
             "notification_type",
             "banner_type",
+            "display_type",
             "cta_text",
             "cta_link",
             "is_active",
