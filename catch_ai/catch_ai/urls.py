@@ -46,8 +46,6 @@ urlpatterns = [
     path("api/subscriptions/", include("apps.subscriptions.urls")),
     path("api/payments/", include("apps.payments.urls")),
     path("api/notifications/", include("apps.notifications.urls")),
-
-    # Admin APIs (Separated properly)
     path("api/admin/", include("apps.templates.admin_urls"))
 ]
 

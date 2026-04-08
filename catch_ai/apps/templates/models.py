@@ -29,10 +29,6 @@ CATEGORY_CHOICES = [
     ("bw", "B&W"),
 ]
 
-import uuid
-from django.db import models
-
-
 class AIModel(models.Model):
 
     id = models.CharField(primary_key=True, max_length=30, editable=False)

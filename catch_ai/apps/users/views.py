@@ -24,8 +24,6 @@ from apps.subscriptions.models import UserSubscription
 
 User = get_user_model()
 
-
-
 def get_tokens_for_user(user):
 
     refresh = RefreshToken.for_user(user)
