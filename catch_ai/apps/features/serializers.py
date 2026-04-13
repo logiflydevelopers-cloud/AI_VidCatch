@@ -140,31 +140,9 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
         is_multi_mode = data.get("is_multi_mode", self.instance.is_multi_mode)
 
         # ----------------------------------
-        # MULTI MODE
+        # ✅ COLORIZE MODE (CHECK FIRST)
         # ----------------------------------
-        if is_multi_mode:
-            fast = data.get("fast_model")
-            standard = data.get("standard_model")
-            advanced = data.get("advanced_model")
-
-            if not (fast and standard and advanced):
-                raise serializers.ValidationError("All 3 models required in multi mode")
-
-            # validate allowed_models
-            for m in [fast, standard, advanced]:
-                if str(m.id) not in allowed_ids:
-                    raise serializers.ValidationError(f"{m} not in allowed_models")
-
-            data["model_mapping"] = {
-                "fast": str(fast.id),
-                "standard": str(standard.id),
-                "advanced": str(advanced.id),
-            }
-
-        # ----------------------------------
-        # COLORIZE MODE
-        # ----------------------------------
-        elif feature_type == "colorize":
+        if feature_type == "colorize":
             bw = data.get("bw_color_model")
             recolor = data.get("recolor_model")
 
@@ -181,7 +159,28 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
             }
 
         # ----------------------------------
-        # NORMAL MODE
+        # ✅ GENERIC MULTI MODE
+        # ----------------------------------
+        elif is_multi_mode:
+            fast = data.get("fast_model")
+            standard = data.get("standard_model")
+            advanced = data.get("advanced_model")
+
+            if not (fast and standard and advanced):
+                raise serializers.ValidationError("All 3 models required in multi mode")
+
+            for m in [fast, standard, advanced]:
+                if str(m.id) not in allowed_ids:
+                    raise serializers.ValidationError(f"{m} not in allowed_models")
+
+            data["model_mapping"] = {
+                "fast": str(fast.id),
+                "standard": str(standard.id),
+                "advanced": str(advanced.id),
+            }
+
+        # ----------------------------------
+        # ✅ SINGLE MODE
         # ----------------------------------
         else:
             data["model_mapping"] = None
