@@ -93,6 +93,8 @@ def get_feature(request, feature_id):
             },
             "credit_cost": f.fast_credit_cost
     })
+        
+    return Response(response)
 
 
 # ==========================================================
