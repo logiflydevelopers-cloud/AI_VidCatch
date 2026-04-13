@@ -108,7 +108,6 @@ class FeatureSerializer(serializers.ModelSerializer):
 
 class FeatureUpdateSerializer(serializers.ModelSerializer):
 
-    # extra fields (same as form)
     fast_model = serializers.PrimaryKeyRelatedField(
         queryset=AIModel.objects.all(), required=False, allow_null=True
     )
@@ -130,21 +129,66 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
         model = Features
         exclude = ("model_mapping",)
 
-    def validate(self, data):
-        request = self.context.get("request")
-
-        allowed_models = data.get("allowed_models", [])
-        allowed_ids = [str(m.id) for m in allowed_models]
-
-        feature_type = data.get("feature_type", self.instance.feature_type)
-        is_multi_mode = data.get("is_multi_mode", self.instance.is_multi_mode)
+    # ==========================================
+    # 🔥 CREDIT LOGIC (NEW)
+    # ==========================================
+    def set_default_credit_cost(self, data, instance=None):
+        feature_type = data.get("feature_type") or getattr(instance, "feature_type", None)
 
         # ----------------------------------
-        # ✅ COLORIZE MODE (CHECK FIRST)
+        # 🎨 COLORIZE
         # ----------------------------------
         if feature_type == "colorize":
-            bw = data.get("bw_color_model")
-            recolor = data.get("recolor_model")
+            credits_config = data.get("credits_config") or getattr(instance, "credits_config", {})
+            data["credit_cost"] = credits_config.get("bw_color", 0)
+
+        # ----------------------------------
+        # 🎬 VIDEO FEATURES (USE TOP-LEVEL FIELDS)
+        # ----------------------------------
+        elif feature_type in ["text_to_video", "image_to_video"]:
+
+            # ✅ PRIORITY → fast_credit_cost
+            if "fast_credit_cost" in data:
+                data["credit_cost"] = data.get("fast_credit_cost") or 0
+
+            elif instance and getattr(instance, "fast_credit_cost", None) is not None:
+                data["credit_cost"] = instance.fast_credit_cost
+
+            else:
+                data["credit_cost"] = 0
+
+        return data
+
+    # ==========================================
+    # 🔥 VALIDATION
+    # ==========================================
+    def validate(self, data):
+
+        instance = getattr(self, "instance", None)
+
+        allowed_models = data.get("allowed_models") or instance.allowed_models.all()
+        allowed_ids = [str(m.id) for m in allowed_models]
+
+        # 👉 ONLY use feature_type if explicitly provided
+        feature_type = data.get("feature_type") or instance.feature_type
+        is_multi_mode = data.get("is_multi_mode", instance.is_multi_mode)
+
+        existing_mapping = instance.model_mapping or {}
+
+        # ==========================================
+        # 🎨 COLORIZE (ONLY if fields provided)
+        # ==========================================
+        if feature_type == "colorize" and (
+            "bw_color_model" in data or "recolor_model" in data
+        ):
+
+            bw = data.get("bw_color_model") or AIModel.objects.filter(
+                id=existing_mapping.get("bw_color")
+            ).first()
+
+            recolor = data.get("recolor_model") or AIModel.objects.filter(
+                id=existing_mapping.get("recolor")
+            ).first()
 
             if not (bw and recolor):
                 raise serializers.ValidationError("Both bw_color & recolor required")
@@ -158,13 +202,26 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
                 "recolor": str(recolor.id),
             }
 
-        # ----------------------------------
-        # ✅ GENERIC MULTI MODE
-        # ----------------------------------
-        elif is_multi_mode:
-            fast = data.get("fast_model")
-            standard = data.get("standard_model")
-            advanced = data.get("advanced_model")
+        # ==========================================
+        # 🎬 MULTI MODE (ONLY if fields provided)
+        # ==========================================
+        elif is_multi_mode and (
+            "fast_model" in data
+            or "standard_model" in data
+            or "advanced_model" in data
+        ):
+
+            fast = data.get("fast_model") or AIModel.objects.filter(
+                id=existing_mapping.get("fast")
+            ).first()
+
+            standard = data.get("standard_model") or AIModel.objects.filter(
+                id=existing_mapping.get("standard")
+            ).first()
+
+            advanced = data.get("advanced_model") or AIModel.objects.filter(
+                id=existing_mapping.get("advanced")
+            ).first()
 
             if not (fast and standard and advanced):
                 raise serializers.ValidationError("All 3 models required in multi mode")
@@ -179,36 +236,49 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
                 "advanced": str(advanced.id),
             }
 
-        # ----------------------------------
-        # ✅ SINGLE MODE
-        # ----------------------------------
+        # ==========================================
+        # 🧩 DO NOTHING (PATCH SAFE)
+        # ==========================================
         else:
-            data["model_mapping"] = None
+            # 👉 keep existing mapping if not updating
+            data["model_mapping"] = existing_mapping
+
+        # ==========================================
+        # 💰 CREDIT LOGIC
+        # ==========================================
+        data = self.set_default_credit_cost(data, instance)
 
         return data
 
+    # ==========================================
+    # 🔥 UPDATE
+    # ==========================================
     def update(self, instance, validated_data):
         model_mapping = validated_data.pop("model_mapping", None)
-
-        # handle many-to-many separately
         allowed_models = validated_data.pop("allowed_models", None)
 
-        # remove extra fields
+        # remove temp fields
         validated_data.pop("fast_model", None)
         validated_data.pop("standard_model", None)
         validated_data.pop("advanced_model", None)
         validated_data.pop("bw_color_model", None)
         validated_data.pop("recolor_model", None)
 
-        # update normal fields
+        # update fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
-        # save first
-        instance.model_mapping = model_mapping
+        # apply mapping
+        if model_mapping is not None:
+            instance.model_mapping = model_mapping
+
+        # apply credit_cost
+        if "credit_cost" in validated_data:
+            instance.credit_cost = validated_data["credit_cost"]
+
         instance.save()
 
-        # NOW set many-to-many
+        # update M2M
         if allowed_models is not None:
             instance.allowed_models.set(allowed_models)
 
