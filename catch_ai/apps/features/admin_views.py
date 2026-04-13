@@ -42,59 +42,56 @@ def list_features(request):
 @api_view(["GET"])
 @permission_classes([IsAdminUser])
 def get_feature(request, feature_id):
-    f = get_object_or_404(Features, id=feature_id)
-    mapping = f.model_mapping or {}
+    try:
+        f = get_object_or_404(Features, id=feature_id)
+        mapping = f.model_mapping or {}
 
-    allowed_models = f.allowed_models.all()
+        allowed_models = f.allowed_models.all()
 
-    response = {
-        "id": f.id,
-        "name": f.name,
-        "feature_type": f.feature_type,
-        "is_multi_mode": f.is_multi_mode,
-        "allowed_models": [
-            {
-                "id": m.id,
-                "name": m.name
-            }
-            for m in allowed_models
-        ],
-        "is_active": f.is_active,
-        "is_premium": f.is_premium,
-        "credits_config": f.credits_config,
-    }
+        response = {
+            "id": f.id,
+            "name": f.name,
+            "feature_type": f.feature_type,
+            "is_multi_mode": f.is_multi_mode,
+            "allowed_models": [
+                {
+                    "id": m.id,
+                    "name": m.name
+                }
+                for m in allowed_models
+            ],
+            "is_active": f.is_active,
+            "is_premium": f.is_premium,
+            "credits_config": f.credits_config,
+        }
 
-    # =========================
-    # MULTI MODE
-    # =========================
-    if f.is_multi_mode:
-        response.update({
-            "model_mapping": {
-                "fast": get_model_name(mapping.get("fast")),
-                "standard": get_model_name(mapping.get("standard")),
-                "advanced": get_model_name(mapping.get("advanced")),
-                "bw_color": get_model_name(mapping.get("bw_color")),
-                "recolor": get_model_name(mapping.get("recolor")),
-            },
-            "fast_credit_cost": f.fast_credit_cost,
-            "standard_credit_cost": f.standard_credit_cost,
-            "advanced_credit_cost": f.advanced_credit_cost,
-        })
+        if f.is_multi_mode:
+            response.update({
+                "model_mapping": {
+                    "fast": get_model_name(mapping.get("fast")),
+                    "standard": get_model_name(mapping.get("standard")),
+                    "advanced": get_model_name(mapping.get("advanced")),
+                    "bw_color": get_model_name(mapping.get("bw_color")),
+                    "recolor": get_model_name(mapping.get("recolor")),
+                },
+                "fast_credit_cost": f.fast_credit_cost,
+                "standard_credit_cost": f.standard_credit_cost,
+                "advanced_credit_cost": f.advanced_credit_cost,
+            })
+        else:
+            default_model_id = mapping.get("default")
 
-    # =========================
-    # SINGLE MODE
-    # =========================
-    else:
-        default_model_id = mapping.get("default")
+            response.update({
+                "model_mapping": {
+                    "default": get_model_name(default_model_id)
+                },
+                "credit_cost": f.fast_credit_cost
+            })
 
-        response.update({
-            "model_mapping": {
-                "default": get_model_name(default_model_id)
-            },
-            "credit_cost": f.fast_credit_cost
-    })
-        
-    return Response(response)
+        return Response(response)
+
+    except Exception as e:
+        return Response({"error": str(e)})
 
 
 # ==========================================================
