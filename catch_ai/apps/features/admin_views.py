@@ -48,6 +48,23 @@ def get_feature(request, feature_id):
 
         allowed_models = f.allowed_models.all()
 
+        # ----------------------------------
+        # 🔥 BUILD NESTED MODEL MAPPING
+        # ----------------------------------
+        def build_model_mapping(data):
+            if isinstance(data, dict):
+                return {
+                    key: build_model_mapping(value)
+                    for key, value in data.items()
+                }
+            else:
+                if not data:
+                    return None
+                return {
+                    "id": data,
+                    "name": get_model_name(data)
+                }
+
         response = {
             "id": f.id,
             "name": f.name,
@@ -65,25 +82,29 @@ def get_feature(request, feature_id):
             "credits_config": f.credits_config,
         }
 
+        # ==========================================
+        # ✅ MULTI MODE (NESTED SUPPORT)
+        # ==========================================
         if f.is_multi_mode:
             response.update({
-                "model_mapping": {
-                    "fast": get_model_name(mapping.get("fast")),
-                    "standard": get_model_name(mapping.get("standard")),
-                    "advanced": get_model_name(mapping.get("advanced")),
-                    "bw_color": get_model_name(mapping.get("bw_color")),
-                    "recolor": get_model_name(mapping.get("recolor")),
-                },
+                "model_mapping": build_model_mapping(mapping),
                 "fast_credit_cost": f.fast_credit_cost,
                 "standard_credit_cost": f.standard_credit_cost,
                 "advanced_credit_cost": f.advanced_credit_cost,
             })
+
+        # ==========================================
+        # ✅ SINGLE MODE
+        # ==========================================
         else:
-            default_model_id = mapping.get("default")
+            default_model_id = f.default_model_id
 
             response.update({
                 "model_mapping": {
-                    "default": get_model_name(default_model_id)
+                    "default": {
+                        "id": default_model_id,
+                        "name": get_model_name(default_model_id)
+                    } if default_model_id else None
                 },
                 "credit_cost": f.credit_cost
             })
@@ -92,8 +113,6 @@ def get_feature(request, feature_id):
 
     except Exception as e:
         return Response({"error": str(e)})
-
-
 # ==========================================================
 # UPDATE FEATURE
 # ==========================================================

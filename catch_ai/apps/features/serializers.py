@@ -17,7 +17,7 @@ class AIModelSerializer(serializers.ModelSerializer):
 # ==========================================================
 class FeatureSerializer(serializers.ModelSerializer):
 
-    models = serializers.SerializerMethodField()
+    model_mapping = serializers.SerializerMethodField()
     default_model = serializers.SerializerMethodField()
 
     class Meta:
@@ -28,62 +28,83 @@ class FeatureSerializer(serializers.ModelSerializer):
             "feature_type",
             "credit_cost",
             "is_premium",
-            "models",
+            "model_mapping",   # ✅ FIXED
             "default_model",
-            "input_schema"
-            "default_settings",
+            "input_schema",
+            "default_settings",  # ✅ FIXED comma
         ]
 
     # -----------------------------
-    # GET MODELS
+    # GET MODEL MAPPING
     # -----------------------------
-    def get_models(self, obj):
+    def get_model_mapping(self, obj):
 
         SPECIAL_FEATURES = ["text_to_video", "image_to_video", "colorize"]
 
-        # -----------------------------
-        # Special features → mapped models
-        # -----------------------------
         if obj.feature_type in SPECIAL_FEATURES and obj.model_mapping:
 
             models_data = {}
 
-            # Clean IDs (handle string/int safely)
-            model_ids = [
-                int(v) for v in obj.model_mapping.values() if v
-            ]
+            # ----------------------------------
+            # 🔥 COLLECT ALL MODEL IDS
+            # ----------------------------------
+            model_ids = set()
 
-            # Single DB query (optimization)
+            for value in obj.model_mapping.values():
+
+                if isinstance(value, dict):
+                    for v in value.values():
+                        if v:
+                            model_ids.add(str(v))
+                else:
+                    if value:
+                        model_ids.add(str(value))
+
+            # ----------------------------------
+            # 🔥 FETCH MODELS
+            # ----------------------------------
             models = AIModel.objects.filter(
                 id__in=model_ids,
                 is_active=True
             )
 
-            model_map = {m.id: m for m in models}
+            model_map = {str(m.id): m for m in models}
 
-            # Build response
-            for key, model_id in obj.model_mapping.items():
+            # ----------------------------------
+            # 🔥 BUILD RESPONSE
+            # ----------------------------------
+            for key, value in obj.model_mapping.items():
 
-                try:
-                    model_id = int(model_id)
-                except (TypeError, ValueError):
-                    models_data[key] = None
-                    continue
+                # ✅ NESTED
+                if isinstance(value, dict):
 
-                model = model_map.get(model_id)
+                    models_data[key] = {}
 
-                if model:
-                    models_data[key] = {
-                        "id": model.id,
-                        "name": model.name
-                    }
+                    for sub_key, model_id in value.items():
+                        model = model_map.get(str(model_id))
+
+                        models_data[key][sub_key] = (
+                            {
+                                "id": model.id,
+                                "name": model.name
+                            } if model else None
+                        )
+
+                # ✅ FLAT
                 else:
-                    models_data[key] = None  # fallback
+                    model = model_map.get(str(value))
+
+                    models_data[key] = (
+                        {
+                            "id": model.id,
+                            "name": model.name
+                        } if model else None
+                    )
 
             return models_data
 
         # -----------------------------
-        # Normal features → list
+        # NORMAL FEATURES
         # -----------------------------
         return [
             {
@@ -92,6 +113,7 @@ class FeatureSerializer(serializers.ModelSerializer):
             }
             for model in obj.allowed_models.filter(is_active=True)
         ]
+
     # -----------------------------
     # GET DEFAULT MODEL
     # -----------------------------
@@ -169,26 +191,20 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
         allowed_models = data.get("allowed_models") or instance.allowed_models.all()
         allowed_ids = [str(m.id) for m in allowed_models]
 
-        # 👉 ONLY use feature_type if explicitly provided
         feature_type = data.get("feature_type") or instance.feature_type
         is_multi_mode = data.get("is_multi_mode", instance.is_multi_mode)
 
         existing_mapping = instance.model_mapping or {}
 
         # ==========================================
-        # 🎨 COLORIZE (ONLY if fields provided)
+        # 🎨 COLORIZE
         # ==========================================
         if feature_type == "colorize" and (
             "bw_color_model" in data or "recolor_model" in data
         ):
 
-            bw = data.get("bw_color_model") or AIModel.objects.filter(
-                id=existing_mapping.get("bw_color")
-            ).first()
-
-            recolor = data.get("recolor_model") or AIModel.objects.filter(
-                id=existing_mapping.get("recolor")
-            ).first()
+            bw = data.get("bw_color_model")
+            recolor = data.get("recolor_model")
 
             if not (bw and recolor):
                 raise serializers.ValidationError("Both bw_color & recolor required")
@@ -203,44 +219,37 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
             }
 
         # ==========================================
-        # 🎬 MULTI MODE (ONLY if fields provided)
+        # 🎬 MULTI MODE (NESTED SAFE)
         # ==========================================
-        elif is_multi_mode and (
-            "fast_model" in data
-            or "standard_model" in data
-            or "advanced_model" in data
+        elif is_multi_mode and any(
+            k in data for k in ["fast_model", "standard_model", "advanced_model"]
         ):
 
-            fast = data.get("fast_model") or AIModel.objects.filter(
-                id=existing_mapping.get("fast")
-            ).first()
+            # 🔥 IMPORTANT: preserve existing nested structure
+            updated_mapping = existing_mapping.copy()
 
-            standard = data.get("standard_model") or AIModel.objects.filter(
-                id=existing_mapping.get("standard")
-            ).first()
+            for group_key, group_value in existing_mapping.items():
 
-            advanced = data.get("advanced_model") or AIModel.objects.filter(
-                id=existing_mapping.get("advanced")
-            ).first()
+                if not isinstance(group_value, dict):
+                    continue
 
-            if not (fast and standard and advanced):
-                raise serializers.ValidationError("All 3 models required in multi mode")
+                updated_mapping[group_key] = group_value.copy()
 
-            for m in [fast, standard, advanced]:
-                if str(m.id) not in allowed_ids:
-                    raise serializers.ValidationError(f"{m} not in allowed_models")
+                if "fast_model" in data and data.get("fast_model"):
+                    updated_mapping[group_key]["fast"] = str(data["fast_model"].id)
 
-            data["model_mapping"] = {
-                "fast": str(fast.id),
-                "standard": str(standard.id),
-                "advanced": str(advanced.id),
-            }
+                if "standard_model" in data and data.get("standard_model"):
+                    updated_mapping[group_key]["standard"] = str(data["standard_model"].id)
+
+                if "advanced_model" in data and data.get("advanced_model"):
+                    updated_mapping[group_key]["advanced"] = str(data["advanced_model"].id)
+
+            data["model_mapping"] = updated_mapping
 
         # ==========================================
-        # 🧩 DO NOTHING (PATCH SAFE)
+        # 🧩 PATCH SAFE (NO CHANGE)
         # ==========================================
         else:
-            # 👉 keep existing mapping if not updating
             data["model_mapping"] = existing_mapping
 
         # ==========================================
