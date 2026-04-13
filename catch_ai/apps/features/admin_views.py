@@ -85,7 +85,7 @@ def get_feature(request, feature_id):
                 "model_mapping": {
                     "default": get_model_name(default_model_id)
                 },
-                "credit_cost": f.fast_credit_cost
+                "credit_cost": f.credit_cost
             })
 
         return Response(response)
