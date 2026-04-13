@@ -5,7 +5,14 @@ from django.shortcuts import get_object_or_404
 
 from .models import Features
 from .serializers import FeatureUpdateSerializer
+from apps.templates.models import AIModel
 
+
+def get_model_name(model_id):
+    if not model_id:
+        return None
+    model = AIModel.objects.filter(id=model_id).first()
+    return model.name if model else None
 
 # ==========================================================
 # LIST FEATURES
@@ -38,12 +45,20 @@ def get_feature(request, feature_id):
     f = get_object_or_404(Features, id=feature_id)
     mapping = f.model_mapping or {}
 
+    allowed_models = f.allowed_models.all()
+
     response = {
         "id": f.id,
         "name": f.name,
         "feature_type": f.feature_type,
         "is_multi_mode": f.is_multi_mode,
-        "allowed_models": [m.id for m in f.allowed_models.all()],
+        "allowed_models": [
+            {
+                "id": m.id,
+                "name": m.name
+            }
+            for m in allowed_models
+        ],
         "is_active": f.is_active,
         "is_premium": f.is_premium,
         "credits_config": f.credits_config,
@@ -55,11 +70,11 @@ def get_feature(request, feature_id):
     if f.is_multi_mode:
         response.update({
             "model_mapping": {
-                "fast": mapping.get("fast"),
-                "standard": mapping.get("standard"),
-                "advanced": mapping.get("advanced"),
-                "bw_color": mapping.get("bw_color"),
-                "recolor": mapping.get("recolor"),
+                "fast": get_model_name(mapping.get("fast")),
+                "standard": get_model_name(mapping.get("standard")),
+                "advanced": get_model_name(mapping.get("advanced")),
+                "bw_color": get_model_name(mapping.get("bw_color")),
+                "recolor": get_model_name(mapping.get("recolor")),
             },
             "fast_credit_cost": f.fast_credit_cost,
             "standard_credit_cost": f.standard_credit_cost,
@@ -70,14 +85,14 @@ def get_feature(request, feature_id):
     # SINGLE MODE
     # =========================
     else:
+        default_model_id = mapping.get("default")
+
         response.update({
             "model_mapping": {
-                "default": mapping.get("default")
+                "default": get_model_name(default_model_id)
             },
-            "credit_cost": f.fast_credit_cost  # reuse fast field
-        })
-
-    return Response(response)
+            "credit_cost": f.fast_credit_cost
+    })
 
 
 # ==========================================================
