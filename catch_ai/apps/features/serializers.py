@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from apps.features.models import Features
+from apps.features.models import Features,  FeatureSetting
 from apps.templates.models import AIModel
 
 
@@ -152,37 +152,27 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
         exclude = ("model_mapping",)
 
     # ==========================================
-    # 🔥 CREDIT LOGIC (NEW)
+    # 🔥 CREDIT LOGIC (UNCHANGED)
     # ==========================================
     def set_default_credit_cost(self, data, instance=None):
         feature_type = data.get("feature_type") or getattr(instance, "feature_type", None)
 
-        # ----------------------------------
-        # 🎨 COLORIZE
-        # ----------------------------------
         if feature_type == "colorize":
             credits_config = data.get("credits_config") or getattr(instance, "credits_config", {})
             data["credit_cost"] = credits_config.get("bw_color", 0)
 
-        # ----------------------------------
-        # 🎬 VIDEO FEATURES (USE TOP-LEVEL FIELDS)
-        # ----------------------------------
         elif feature_type in ["text_to_video", "image_to_video"]:
-
-            # ✅ PRIORITY → fast_credit_cost
             if "fast_credit_cost" in data:
                 data["credit_cost"] = data.get("fast_credit_cost") or 0
-
             elif instance and getattr(instance, "fast_credit_cost", None) is not None:
                 data["credit_cost"] = instance.fast_credit_cost
-
             else:
                 data["credit_cost"] = 0
 
         return data
 
     # ==========================================
-    # 🔥 VALIDATION
+    # 🔥 VALIDATION (UNCHANGED)
     # ==========================================
     def validate(self, data):
 
@@ -196,13 +186,9 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
 
         existing_mapping = instance.model_mapping or {}
 
-        # ==========================================
-        # 🎨 COLORIZE
-        # ==========================================
         if feature_type == "colorize" and (
             "bw_color_model" in data or "recolor_model" in data
         ):
-
             bw = data.get("bw_color_model")
             recolor = data.get("recolor_model")
 
@@ -218,14 +204,9 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
                 "recolor": str(recolor.id),
             }
 
-        # ==========================================
-        # 🎬 MULTI MODE (NESTED SAFE)
-        # ==========================================
         elif is_multi_mode and any(
             k in data for k in ["fast_model", "standard_model", "advanced_model"]
         ):
-
-            # 🔥 IMPORTANT: preserve existing nested structure
             updated_mapping = existing_mapping.copy()
 
             for group_key, group_value in existing_mapping.items():
@@ -246,48 +227,90 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
 
             data["model_mapping"] = updated_mapping
 
-        # ==========================================
-        # 🧩 PATCH SAFE (NO CHANGE)
-        # ==========================================
         else:
             data["model_mapping"] = existing_mapping
 
-        # ==========================================
-        # 💰 CREDIT LOGIC
-        # ==========================================
         data = self.set_default_credit_cost(data, instance)
 
         return data
 
     # ==========================================
-    # 🔥 UPDATE
+    # 🔥 NEW: SYNC FEATURE SETTINGS TABLE
+    # ==========================================
+    def sync_feature_settings(self, instance):
+        config = instance.credits_config or {}
+
+        for key, modes in config.items():
+
+            if not isinstance(modes, dict):
+                continue
+
+            for mode, options in modes.items():
+
+                if not isinstance(options, dict):
+                    continue
+
+                option_keys = list(options.keys())
+
+                # ✅ FIX: handle duplicates safely
+                qs = FeatureSetting.objects.filter(
+                    feature_id=instance.id,
+                    mode=mode,
+                    key=key
+                )
+
+                obj = qs.first()
+
+                if obj:
+                    # 🔥 update existing
+                    obj.options = option_keys
+                    obj.default_value = option_keys[0] if option_keys else None
+                    obj.save()
+
+                    # 🔥 OPTIONAL: delete duplicates (VERY IMPORTANT)
+                    if qs.count() > 1:
+                        qs.exclude(id=obj.id).delete()
+
+                else:
+                    # 🔥 create new
+                    FeatureSetting.objects.create(
+                        feature_id=instance.id,
+                        mode=mode,
+                        key=key,
+                        type="select",
+                        options=option_keys,
+                        default_value=option_keys[0] if option_keys else None,
+                        is_required=True,
+                        display_order=0,
+                    )
+
+    # ==========================================
+    # 🔥 UPDATE (UPDATED)
     # ==========================================
     def update(self, instance, validated_data):
         model_mapping = validated_data.pop("model_mapping", None)
         allowed_models = validated_data.pop("allowed_models", None)
 
-        # remove temp fields
         validated_data.pop("fast_model", None)
         validated_data.pop("standard_model", None)
         validated_data.pop("advanced_model", None)
         validated_data.pop("bw_color_model", None)
         validated_data.pop("recolor_model", None)
 
-        # update fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
-        # apply mapping
         if model_mapping is not None:
             instance.model_mapping = model_mapping
 
-        # apply credit_cost
         if "credit_cost" in validated_data:
             instance.credit_cost = validated_data["credit_cost"]
 
         instance.save()
 
-        # update M2M
+        # 🔥🔥🔥 MAIN LINE (THIS FIXES YOUR PROBLEM)
+        self.sync_feature_settings(instance)
+
         if allowed_models is not None:
             instance.allowed_models.set(allowed_models)
 
