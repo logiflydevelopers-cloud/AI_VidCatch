@@ -130,15 +130,15 @@ def get_feature_settings(feature):
     # MULTI MODE
     # ============================
     if feature.is_multi_mode:
-        settings = {
-            "fast": {},
-            "standard": {},
-            "advanced": {}
-        }
+        settings = {}
 
         qs = feature.settings.all().order_by("display_order")
 
         for s in qs:
+            # Ensure mode exists
+            if s.mode not in settings:
+                settings[s.mode] = {}
+
             settings[s.mode][s.key] = s.options
 
         return settings
