@@ -21,9 +21,6 @@ class Features(models.Model):
     # CREDITS PER MODE
     # ============================
     credit_cost = models.PositiveIntegerField(default=0)
-    fast_credit_cost = models.PositiveIntegerField(default=0)
-    standard_credit_cost = models.PositiveIntegerField(default=0)
-    advanced_credit_cost = models.PositiveIntegerField(default=0)
 
     credits_config = models.JSONField(blank=True, null=True)
 

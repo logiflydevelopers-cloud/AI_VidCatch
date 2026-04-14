@@ -10,4 +10,4 @@ User = get_user_model()
 @receiver(post_save, sender=User)
 def create_user_credits(sender, instance, created, **kwargs):
     if created:
-        add_credits(instance, 1000, "Signup bonus")
+        add_credits(instance, 50, "Signup bonus")

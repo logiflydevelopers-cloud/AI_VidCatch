@@ -88,9 +88,6 @@ def get_feature(request, feature_id):
         if f.is_multi_mode:
             response.update({
                 "model_mapping": build_model_mapping(mapping),
-                "fast_credit_cost": f.fast_credit_cost,
-                "standard_credit_cost": f.standard_credit_cost,
-                "advanced_credit_cost": f.advanced_credit_cost,
             })
 
         # ==========================================

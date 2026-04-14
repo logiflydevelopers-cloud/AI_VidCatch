@@ -191,12 +191,7 @@ class TemplateAdmin(admin.ModelAdmin):
 # ==========================================================
 class FeatureAdminForm(forms.ModelForm):
 
-    # -----------------------------
-    # MULTI MODE
-    # -----------------------------
-    fast_model = forms.ModelChoiceField(queryset=AIModel.objects.none(), required=False)
-    standard_model = forms.ModelChoiceField(queryset=AIModel.objects.none(), required=False)
-    advanced_model = forms.ModelChoiceField(queryset=AIModel.objects.none(), required=False)
+    
 
     # -----------------------------
     # COLORIZE
@@ -456,10 +451,7 @@ class FeaturesAdmin(admin.ModelAdmin):
 
             ("Credits", {
                 "fields": (
-                    "credit_cost",
-                    "fast_credit_cost",
-                    "standard_credit_cost",
-                    "advanced_credit_cost",
+                    "credit_cost"
                     "credits_config",
                 )
             }),
@@ -527,9 +519,6 @@ class FeaturesAdmin(admin.ModelAdmin):
         "name",
         "feature_type",
         "is_multi_mode",
-        "fast_credit_cost",
-        "standard_credit_cost",
-        "advanced_credit_cost",
         "is_premium",
         "is_active",
         "display_order",

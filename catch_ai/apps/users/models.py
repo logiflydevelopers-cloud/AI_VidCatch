@@ -54,6 +54,12 @@ class User(AbstractBaseUser, PermissionsMixin):
         ("google", "Google"),
     )
 
+    STATUS_CHOICES = (
+        ("new", "New"),
+        ("active", "Active"),
+        ("banned", "Banned"),
+    )
+
     id = models.CharField(
         primary_key=True,
         max_length=20,
@@ -68,18 +74,22 @@ class User(AbstractBaseUser, PermissionsMixin):
         db_index=True
     )
 
-    # how user registered
     login_provider = models.CharField(
         max_length=20,
         choices=LOGIN_CHOICES,
         default="email"
     )
 
-    # store google account id
     google_id = models.CharField(
         max_length=255,
         null=True,
         blank=True
+    )
+
+    status = models.CharField(
+        max_length=10,
+        choices=STATUS_CHOICES,
+        default="new"
     )
 
     is_active = models.BooleanField(default=True)
@@ -93,8 +103,15 @@ class User(AbstractBaseUser, PermissionsMixin):
     objects = UserManager()
 
     USERNAME_FIELD = "email"
-
     REQUIRED_FIELDS = ["username"]
+
+    def save(self, *args, **kwargs):
+        if self.status == "banned":
+            self.is_active = False
+        else:
+            self.is_active = True
+
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.email
