@@ -102,27 +102,39 @@ def get_feature_models(feature):
 # ==========================================================
 def get_normalized_credits(feature):
 
+    credits_config = feature.credits_config or {}
+
     # ============================
-    # BASE CREDITS (FROM FIELDS)
+    # MULTI MODE
     # ============================
     if feature.is_multi_mode:
-        credits = {
-            "fast": feature.fast_credit_cost,
-            "standard": feature.standard_credit_cost,
-            "advanced": feature.advanced_credit_cost
+
+        normalized = {
+            "fast": {},
+            "standard": {},
+            "advanced": {}
         }
+
+        for key, modes in credits_config.items():
+
+            if not isinstance(modes, dict):
+                continue
+
+            for mode in ["fast", "standard", "advanced"]:
+                value = modes.get(mode)
+
+                if value is not None:
+                    normalized[mode][key] = value
+
+        return normalized
+
+    # ============================
+    # SINGLE MODE
+    # ============================
     else:
-        credits = {
-            "default": feature.credit_cost
+        return {
+            "default": credits_config
         }
-
-    # ============================
-    # ADDONS (FROM JSON)
-    # ============================
-    if feature.credits_config:
-        credits.update(feature.credits_config)
-
-    return credits
 
 def get_feature_settings(feature):
 

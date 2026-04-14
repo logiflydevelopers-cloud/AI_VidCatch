@@ -128,6 +128,11 @@ class FeatureSerializer(serializers.ModelSerializer):
         return None
 
 
+from rest_framework import serializers
+from .models import Features, FeatureSetting
+from ai_models.models import AIModel
+
+
 class FeatureUpdateSerializer(serializers.ModelSerializer):
 
     fast_model = serializers.PrimaryKeyRelatedField(
@@ -152,27 +157,29 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
         exclude = ("model_mapping",)
 
     # ==========================================
-    # 🔥 CREDIT LOGIC (UNCHANGED)
+    # 🔥 NEW CREDIT LOGIC (JSON BASED)
     # ==========================================
     def set_default_credit_cost(self, data, instance=None):
         feature_type = data.get("feature_type") or getattr(instance, "feature_type", None)
 
+        credits_config = data.get("credits_config") or getattr(instance, "credits_config", {})
+
+        # 🎨 COLORIZE
         if feature_type == "colorize":
-            credits_config = data.get("credits_config") or getattr(instance, "credits_config", {})
             data["credit_cost"] = credits_config.get("bw_color", 0)
 
+        # 🎬 VIDEO FEATURES (FROM DURATION)
         elif feature_type in ["text_to_video", "image_to_video"]:
-            if "fast_credit_cost" in data:
-                data["credit_cost"] = data.get("fast_credit_cost") or 0
-            elif instance and getattr(instance, "fast_credit_cost", None) is not None:
-                data["credit_cost"] = instance.fast_credit_cost
-            else:
-                data["credit_cost"] = 0
+            duration = credits_config.get("duration", {})
+            fast = duration.get("fast", {})
+
+            # ✅ pick minimum cost (best approach)
+            data["credit_cost"] = min(fast.values()) if fast else 0
 
         return data
 
     # ==========================================
-    # 🔥 VALIDATION (UNCHANGED)
+    # 🔥 VALIDATION (CLEANED)
     # ==========================================
     def validate(self, data):
 
@@ -186,6 +193,7 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
 
         existing_mapping = instance.model_mapping or {}
 
+        # 🎨 COLORIZE
         if feature_type == "colorize" and (
             "bw_color_model" in data or "recolor_model" in data
         ):
@@ -204,6 +212,7 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
                 "recolor": str(recolor.id),
             }
 
+        # 🎬 MULTI MODE
         elif is_multi_mode and any(
             k in data for k in ["fast_model", "standard_model", "advanced_model"]
         ):
@@ -216,13 +225,13 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
 
                 updated_mapping[group_key] = group_value.copy()
 
-                if "fast_model" in data and data.get("fast_model"):
+                if data.get("fast_model"):
                     updated_mapping[group_key]["fast"] = str(data["fast_model"].id)
 
-                if "standard_model" in data and data.get("standard_model"):
+                if data.get("standard_model"):
                     updated_mapping[group_key]["standard"] = str(data["standard_model"].id)
 
-                if "advanced_model" in data and data.get("advanced_model"):
+                if data.get("advanced_model"):
                     updated_mapping[group_key]["advanced"] = str(data["advanced_model"].id)
 
             data["model_mapping"] = updated_mapping
@@ -235,7 +244,7 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
         return data
 
     # ==========================================
-    # 🔥 NEW: SYNC FEATURE SETTINGS TABLE
+    # 🔥 SYNC FEATURE SETTINGS
     # ==========================================
     def sync_feature_settings(self, instance):
         config = instance.credits_config or {}
@@ -247,12 +256,17 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
 
             for mode, options in modes.items():
 
-                if not isinstance(options, dict):
+                # BOOLEAN CASE (audio)
+                if isinstance(options, bool):
+                    option_keys = [True, False]
+
+                # SELECT CASE (duration, resolution)
+                elif isinstance(options, dict):
+                    option_keys = list(options.keys())
+
+                else:
                     continue
 
-                option_keys = list(options.keys())
-
-                # ✅ FIX: handle duplicates safely
                 qs = FeatureSetting.objects.filter(
                     feature_id=instance.id,
                     mode=mode,
@@ -262,17 +276,14 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
                 obj = qs.first()
 
                 if obj:
-                    # 🔥 update existing
                     obj.options = option_keys
                     obj.default_value = option_keys[0] if option_keys else None
                     obj.save()
 
-                    # 🔥 OPTIONAL: delete duplicates (VERY IMPORTANT)
                     if qs.count() > 1:
                         qs.exclude(id=obj.id).delete()
 
                 else:
-                    # 🔥 create new
                     FeatureSetting.objects.create(
                         feature_id=instance.id,
                         mode=mode,
@@ -285,7 +296,7 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
                     )
 
     # ==========================================
-    # 🔥 UPDATE (UPDATED)
+    # 🔥 UPDATE
     # ==========================================
     def update(self, instance, validated_data):
         model_mapping = validated_data.pop("model_mapping", None)
@@ -308,7 +319,7 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
 
         instance.save()
 
-        # 🔥🔥🔥 MAIN LINE (THIS FIXES YOUR PROBLEM)
+        # 🔥 SYNC SETTINGS
         self.sync_feature_settings(instance)
 
         if allowed_models is not None:
