@@ -130,7 +130,7 @@ class FeatureSerializer(serializers.ModelSerializer):
 
 from rest_framework import serializers
 from .models import Features, FeatureSetting
-from ai_models.models import AIModel
+from apps.templates.models import AIModel
 
 
 class FeatureUpdateSerializer(serializers.ModelSerializer):
