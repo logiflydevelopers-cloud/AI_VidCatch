@@ -64,7 +64,7 @@ def run_generation(self, generation_id, payload):
             deduct_credits(
                 user=generation.user,
                 amount=cost,
-                description=f"Generation ({generation.source_type})",
+                transaction_action=f"Generation ({generation.source_type})",
                 template=generation.template,
                 feature=generation.feature
             )
@@ -186,7 +186,7 @@ def run_generation(self, generation_id, payload):
                 add_credits(
                     user=generation.user,
                     amount=generation.credit_used,
-                    description=f"Refund for failed generation {generation.id}"
+                    transaction_action=f"Refund for failed generation {generation.id}"
                 )
 
                 generation.is_refunded = True

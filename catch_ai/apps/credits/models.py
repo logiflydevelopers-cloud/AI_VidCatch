@@ -57,7 +57,7 @@ class UserCredits(models.Model):
 
 class CreditTransaction(models.Model):
 
-    TRANSACTION_TYPE = (
+    transaction_action = (
         ("add", "Add"),
         ("deduct", "Deduct"),
     )
@@ -85,12 +85,12 @@ class CreditTransaction(models.Model):
     )
 
     amount = models.PositiveIntegerField()
-    transaction_type = models.CharField(max_length=10, choices=TRANSACTION_TYPE)
+    transaction_action = models.CharField(max_length=10, choices=transaction_action)
     
     balance_before = models.PositiveIntegerField(null=True, blank=True)
     balance_after = models.PositiveIntegerField(null=True, blank=True)
 
-    description = models.TextField(blank=True, null=True)
+    transaction_type = models.TextField(blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
@@ -103,4 +103,4 @@ class CreditTransaction(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.user} - {self.amount} ({self.transaction_type})"
+        return f"{self.user} - {self.amount} ({self.transaction_action})"

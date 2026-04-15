@@ -592,7 +592,7 @@ class UserCreditsAdmin(admin.ModelAdmin):
             CreditTransaction.objects.create(
                 user=obj.user,
                 amount=50,
-                transaction_type="credit",
+                transaction_action="credit",
                 balance_after=obj.total_credits
             )
 
@@ -610,7 +610,7 @@ class CreditTransactionAdmin(admin.ModelAdmin):
     list_display = (
         "id", "user", "template",
         "feature", "amount",
-        "transaction_type",
+        "transaction_action",
         "balance_after", "created_at"
     )
 

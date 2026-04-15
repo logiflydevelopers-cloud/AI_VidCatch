@@ -64,8 +64,6 @@ def admin_user_detail(request, user_id):
 
             "plan": subscription.current_plan.name if subscription and subscription.current_plan else "Free",
 
-            "credits": credits.balance if credits else 0,
-
             "last_login": user.last_login,
             "created_at": user.created_at
         })
@@ -76,36 +74,68 @@ def admin_user_detail(request, user_id):
     if request.method == "PATCH":
 
         status_value = request.data.get("status")
+        new_password = request.data.get("password")
 
-        if status_value not in ["active", "banned", "new"]:
+        update_fields = []
+
+        # ==========================
+        # 🔐 PASSWORD UPDATE
+        # ==========================
+        if new_password:
+            if len(new_password) < 8:
+                return Response(
+                    {"error": "Password must be at least 8 characters"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            user.set_password(new_password)  # ✅ HASHED PASSWORD
+            update_fields.append("password")
+
+        # ==========================
+        # 🔄 STATUS UPDATE
+        # ==========================
+        if status_value:
+
+            if status_value not in ["active", "banned", "new"]:
+                return Response(
+                    {"error": "Invalid status"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # 🚫 BAN always allowed
+            if status_value == "banned":
+                user.status = "banned"
+                update_fields.append("status")
+
+            else:
+                # ✅ Check subscription
+                has_active_plan = UserSubscription.objects.filter(
+                    user=user,
+                    status="active"
+                ).exists()
+
+                if status_value == "active" and not has_active_plan:
+                    return Response(
+                        {"error": "User does not have active subscription"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                user.status = status_value
+                update_fields.append("status")
+
+        # ==========================
+        # 🚫 NOTHING TO UPDATE
+        # ==========================
+        if not update_fields:
             return Response(
-                {"error": "Invalid status"},
+                {"error": "No data provided to update"},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # 🚫 BAN always allowed
-        if status_value == "banned":
-            user.status = "banned"
-            user.save(update_fields=["status"])
-            return Response({"message": "User banned successfully"})
-
-        # ✅ Check subscription
-        has_active_plan = UserSubscription.objects.filter(
-            user=user,
-            status="active"
-        ).exists()
-
-        if status_value == "active" and not has_active_plan:
-            return Response(
-                {"error": "User does not have active subscription"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # ✅ Apply status
-        user.status = status_value
-        user.save(update_fields=["status"])
+        # ✅ SAVE ONCE
+        user.save(update_fields=update_fields)
 
         return Response({
-            "message": "User status updated",
+            "message": "User updated successfully",
             "status": user.status
         })

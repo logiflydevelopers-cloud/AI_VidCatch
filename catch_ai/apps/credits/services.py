@@ -8,7 +8,7 @@ from .models import UserCredits, CreditTransaction
 # ADD CREDITS
 # ============================
 @transaction.atomic
-def add_credits(user, amount, description=""):
+def add_credits(user, amount, transaction_type=""):
     wallet, _ = UserCredits.objects.get_or_create(user=user)
 
     before = wallet.balance
@@ -21,10 +21,10 @@ def add_credits(user, amount, description=""):
     CreditTransaction.objects.create(
         user=user,
         amount=amount,
-        transaction_type="add",
+        transaction_action="add",
         balance_before=before,
         balance_after=wallet.balance,
-        description=description
+        transaction_type=transaction_type
     )
 
 
@@ -32,7 +32,7 @@ def add_credits(user, amount, description=""):
 # DEDUCT CREDITS
 # ============================
 @transaction.atomic
-def deduct_credits(user, amount, description="", template=None, feature=None):
+def deduct_credits(user, amount, transaction_type="", template=None, feature=None):
     wallet, _ = UserCredits.objects.get_or_create(user=user)
 
     if wallet.balance < amount:
@@ -48,10 +48,10 @@ def deduct_credits(user, amount, description="", template=None, feature=None):
     CreditTransaction.objects.create(
         user=user,
         amount=amount,
-        transaction_type="deduct",
+        transaction_action="deduct",
         balance_before=before,
         balance_after=wallet.balance,
-        description=description,
+        transaction_type=transaction_type,
         template=template,
         feature=feature
     )
@@ -76,8 +76,8 @@ def apply_plan_purchase(user, plan):
     CreditTransaction.objects.create(
         user=user,
         amount=plan.credits_per_month,
-        transaction_type="add",
+        transaction_action="add",
         balance_before=before,
         balance_after=wallet.balance,
-        description=f"Plan purchase: {plan.name}"
+        transaction_type=f"Plan purchase: {plan.name}"
     )

@@ -65,7 +65,6 @@ def get_dashboard_data():
             "credit_balance": credit_data.get("balance", 0),
             "total_credit_used": credit_data.get("used", 0),
 
-            # ✅ FIX: default Free
             "plan_name": sub_data.get("plan_name", "Free"),
             "plan_expiry": sub_data.get("plan_expiry"),
         })
@@ -106,9 +105,9 @@ def get_dashboard_data():
             "user_id": c.user.id,
             "email": c.user.email,
 
-            "type": c.transaction_type,
+            "action": c.transaction_action,
             "amount": c.amount,
-            "description": c.description,
+            "type":c.transaction_type,
 
             "balance_after": c.balance_after,
             "balance_before": c.balance_before,

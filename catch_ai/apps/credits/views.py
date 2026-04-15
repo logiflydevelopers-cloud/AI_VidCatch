@@ -83,9 +83,9 @@ def deduct_credits_for_template(request):
             template=template,
             feature=None,
             amount=cost,
-            transaction_type="deduct",
+            transaction_action="deduct",
             balance_after=remaining_after,
-            description=f"Used template: {template.name}"
+            transaction_action=f"Used template: {template.name}"
         )
 
     return Response({
@@ -124,9 +124,9 @@ def add_credits(request):
         CreditTransaction.objects.create(
             user=request.user,
             amount=amount,
-            transaction_type="add",
+            transaction_action="add",
             balance_after=remaining_after,
-            description="Credits added"
+            transaction_action="Credits added"
         )
 
     return Response({
