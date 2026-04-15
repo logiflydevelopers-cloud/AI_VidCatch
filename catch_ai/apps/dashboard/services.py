@@ -88,6 +88,7 @@ def get_dashboard_data():
             "id": p.id,
             "user_id": p.user.id,
             "email": p.user.email,
+            "name": p.user.username,
 
             "plan_id": p.plan.id if p.plan else None,
             "plan_name": p.plan.name if p.plan else "Free",
@@ -109,20 +110,44 @@ def get_dashboard_data():
     credits_list = []
 
     for c in credits_qs:
+
         credits_list.append({
             "id": c.id,
+
+            # ==========================
+            # USER INFO
+            # ==========================
             "user_id": c.user.id,
             "email": c.user.email,
             "name": c.user.username,
 
-            "action": c.transaction_action,
+            # ==========================
+            # TRANSACTION INFO
+            # ==========================
+            "action": c.transaction_action,  
             "amount": c.amount,
-            "type":c.transaction_type,
+            "type": c.transaction_type,
 
-            "balance_after": c.balance_after,
+            # ==========================
+            # RELATED DATA (IMPORTANT)
+            # ==========================
+            "feature_id": c.feature_id,
+            "feature_name": c.feature.name if c.feature else None,
+
+            "template_id": c.template_id,
+            "template_name": c.template.name if c.template else None,
+
+            # ==========================
+            # BALANCE
+            # ==========================
             "balance_before": c.balance_before,
+            "balance_after": c.balance_after,
 
+            # ==========================
+            # DATE
+            # ==========================
             "created_at": c.created_at,
+            "created_at_formatted": c.created_at.strftime("%d %b %Y, %I:%M %p"),
         })
 
     # ==========================================================
