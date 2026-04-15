@@ -106,6 +106,10 @@ def admin_user_detail(request, user_id):
 
             if status_value == "banned":
                 user.status = "banned"
+                user.is_active = False
+
+                update_fields.extend(["status", "is_active"])
+
             else:
                 has_active_plan = UserSubscription.objects.filter(
                     user=user,
@@ -113,11 +117,15 @@ def admin_user_detail(request, user_id):
                 ).exists()
 
                 if status_value == "active" and not has_active_plan:
-                    return Response({"error": "User has no active subscription"}, status=400)
+                    return Response(
+                        {"error": "User has no active subscription"},
+                        status=400
+                    )
 
                 user.status = status_value
+                user.is_active = True
 
-            update_fields.append("status")
+                update_fields.extend(["status", "is_active"])
 
         if not update_fields:
             return Response({"error": "No data provided"}, status=400)
