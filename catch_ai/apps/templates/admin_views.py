@@ -99,10 +99,12 @@ def create_template(request):
             cover_file = request.FILES.get("cover_image")
 
             if cover_file:
-                template.cover_image = upload_file(
+                url, content_type = upload_file(
                     cover_file,
                     f"templates/{template.id}/cover"
                 )
+
+                template.cover_image = url
 
             # ================================
             # UPLOAD PREVIEW MEDIA
@@ -110,10 +112,16 @@ def create_template(request):
             preview_files = request.FILES.getlist("preview_media")
 
             if preview_files:
-                template.preview_media = [
-                    upload_file(file, f"templates/{template.id}/previews")
-                    for file in preview_files
-                ]
+                preview_media = []
+
+                for file in preview_files:
+                    url, _ = upload_file(
+                        file,
+                        f"templates/{template.id}/previews"
+                    )
+                    preview_media.append(url)
+
+                template.preview_media = preview_media
 
             template.save()
 
