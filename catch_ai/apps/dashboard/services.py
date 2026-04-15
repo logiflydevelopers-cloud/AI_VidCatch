@@ -3,7 +3,7 @@ from apps.users.models import User
 from apps.subscriptions.models import UserSubscription
 from apps.generations.models import Generation
 from apps.templates.models import AIModel
-from apps.credits.models import UserCredits
+from apps.credits.models import UserCredits, CreditTransaction
 from apps.payments.models import Payment
 
 
@@ -60,6 +60,7 @@ def get_dashboard_data():
             "email": user.email,
             "created_at": user.created_at,
             "status": user.status,
+            "last_login": user.last_login,
 
             "credit_balance": credit_data.get("balance", 0),
             "total_credit_used": credit_data.get("used", 0),
@@ -91,6 +92,28 @@ def get_dashboard_data():
             "provider_order_id": p.provider_order_id,
 
             "created_at": p.created_at,
+        })
+
+    credits_qs = CreditTransaction.objects.select_related(
+        "user"
+    ).filter(user__is_staff=False).order_by("-created_at")
+
+    credits_list = []
+
+    for c in credits_qs:
+        credits_list.append({
+            "id": c.id,
+            "user_id": c.user.id,
+            "email": c.user.email,
+
+            "type": c.transaction_type,
+            "amount": c.amount,
+            "description": c.description,
+
+            "balance_after": c.balance_after,
+            "balance_before": c.balance_before,
+
+            "created_at": c.created_at,
         })
 
     # ==========================================================
@@ -143,7 +166,8 @@ def get_dashboard_data():
             "user_list": users_list
         },
 
-        "payments": payments_list,
+        "payments_transaction": payments_list,
+        "credits_transaction": credits_list,
 
         "generations": {
             "total": total_generations,

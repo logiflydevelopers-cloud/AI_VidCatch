@@ -224,3 +224,4 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'kunjaisolution2025@gmail.com'
 EMAIL_HOST_PASSWORD = 'tydv zvwc zxwx ngax'
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+

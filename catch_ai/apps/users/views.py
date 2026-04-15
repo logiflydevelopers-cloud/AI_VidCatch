@@ -21,6 +21,7 @@ from django.utils.encoding import force_bytes, force_str
 from apps.credits.models import UserCredits
 from apps.generations.models import Generation
 from apps.subscriptions.models import UserSubscription
+from django.utils import timezone
 
 User = get_user_model()
 
@@ -87,6 +88,11 @@ def login(request):
             status=status.HTTP_403_FORBIDDEN
         )
 
+    # ✅ BULLETPROOF UPDATE (bypass save issues)
+    User.objects.filter(id=user.id).update(
+        last_login=timezone.now()
+    )
+
     tokens = get_tokens_for_user(user)
 
     return Response({
@@ -140,10 +146,17 @@ def google_login(request):
             status=status.HTTP_401_UNAUTHORIZED
         )
 
-    email = idinfo["email"]
+    email = idinfo.get("email")
     username = idinfo.get("name", "")
-    google_id = idinfo["sub"]
+    google_id = idinfo.get("sub")
 
+    if not email:
+        return Response(
+            {"error": "Email not available from Google"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # ✅ GET OR CREATE USER
     user, created = User.objects.get_or_create(
         email=email,
         defaults={
@@ -153,9 +166,29 @@ def google_login(request):
         }
     )
 
+    # ✅ UPDATE EXISTING USER (if needed)
+    if not created:
+        update_data = {}
+
+        if not user.google_id:
+            update_data["google_id"] = google_id
+
+        if not user.username and username:
+            update_data["username"] = username
+
+        if update_data:
+            User.objects.filter(id=user.id).update(**update_data)
+
+    # ✅ FIX: UPDATE LAST LOGIN (BULLETPROOF)
+    User.objects.filter(id=user.id).update(
+        last_login=timezone.now()
+    )
+
+    # ✅ GENERATE TOKENS
     refresh = RefreshToken.for_user(user)
 
     return Response({
+        "message": "Google login successful",
         "user": {
             "id": user.id,
             "email": user.email,
@@ -166,7 +199,7 @@ def google_login(request):
             "access": str(refresh.access_token),
             "refresh": str(refresh)
         }
-    })
+    }, status=status.HTTP_200_OK)
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
