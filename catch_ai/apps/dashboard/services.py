@@ -113,6 +113,7 @@ def get_dashboard_data():
             "id": c.id,
             "user_id": c.user.id,
             "email": c.user.email,
+            "name": c.user.username,
 
             "action": c.transaction_action,
             "amount": c.amount,
