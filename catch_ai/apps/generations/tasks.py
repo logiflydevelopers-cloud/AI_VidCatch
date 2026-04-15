@@ -64,7 +64,7 @@ def run_generation(self, generation_id, payload):
             deduct_credits(
                 user=generation.user,
                 amount=cost,
-                transaction_action=f"Generation ({generation.source_type})",
+                transaction_type=f"Generation ({generation.source_type})",
                 template=generation.template,
                 feature=generation.feature
             )
