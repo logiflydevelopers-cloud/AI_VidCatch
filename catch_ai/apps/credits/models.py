@@ -16,10 +16,9 @@ class UserCredits(models.Model):
         related_name="credit_wallet"
     )
 
-    total_credits = models.PositiveIntegerField(default=0)   # lifetime purchased
-    used_credits = models.PositiveIntegerField(default=0)    # analytics only
-    balance = models.PositiveIntegerField(default=0)         # MAIN FIELD
-
+    total_credits = models.PositiveIntegerField(default=0)   
+    used_credits = models.PositiveIntegerField(default=0)    
+    balance = models.PositiveIntegerField(default=0)         
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -46,6 +46,7 @@ urlpatterns = [
     path("api/subscriptions/", include("apps.subscriptions.urls")),
     path("api/payments/", include("apps.payments.urls")),
     path("api/notifications/", include("apps.notifications.urls")),
+    path("api/plan-medias/", include("apps.plan_slider.urls")),
     path("api/admin/", include("apps.templates.admin_urls"))
 ]
 

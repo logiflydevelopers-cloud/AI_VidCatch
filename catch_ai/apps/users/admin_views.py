@@ -143,7 +143,7 @@ def admin_user_detail(request, user_id):
     if request.method == "POST":
 
         amount = request.data.get("amount")
-        action = request.data.get("action")  # reward / penalty
+        action = request.data.get("action")
         description = request.data.get("description", "")
 
         if not amount or int(amount) <= 0:
@@ -156,16 +156,29 @@ def admin_user_detail(request, user_id):
 
         with transaction.atomic():
 
-            last_txn = CreditTransaction.objects.filter(
-                user=user
-            ).order_by("-created_at").first()
+            # ==========================
+            # GET OR CREATE USER CREDITS
+            # ==========================
+            user_credits, _ = UserCredits.objects.get_or_create(
+                user=user,
+                defaults={
+                    "total_credits": 0,
+                    "used_credits": 0,
+                    "balance": 0
+                }
+            )
 
-            balance_before = last_txn.balance_after if last_txn else 0
+            balance_before = user_credits.balance
 
+            # ==========================
+            # APPLY LOGIC
+            # ==========================
             if action == "reward":
                 transaction_action = "add"
                 transaction_type = description or "Admin reward"
+
                 balance_after = balance_before + amount
+                user_credits.total_credits += amount
 
             else:
                 transaction_action = "deduct"
@@ -175,7 +188,17 @@ def admin_user_detail(request, user_id):
                     return Response({"error": "Insufficient credits"}, status=400)
 
                 balance_after = balance_before - amount
+                user_credits.used_credits += amount
 
+            # ==========================
+            # UPDATE MAIN TABLE ✅
+            # ==========================
+            user_credits.balance = balance_after
+            user_credits.save()
+
+            # ==========================
+            # CREATE TRANSACTION LOG ✅
+            # ==========================
             CreditTransaction.objects.create(
                 user=user,
                 amount=amount,
@@ -188,5 +211,6 @@ def admin_user_detail(request, user_id):
 
         return Response({
             "message": "Credits updated successfully",
+            "balance_before": balance_before,
             "balance_after": balance_after
         })

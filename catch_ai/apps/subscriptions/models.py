@@ -58,15 +58,16 @@ class Plan(models.Model):
     # ======================================
     def save(self, *args, **kwargs):
 
-        # Generate ID if not exists
         if not self.id:
             self.id = generate_plan_id()
+
+        if not isinstance(self.media, list):
+            self.media = []
 
         super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name
-
 
 # ============================
 # USER SUBSCRIPTION MODEL

@@ -157,3 +157,34 @@ def delete_file(file_url):
 
     except Exception as e:
         print("Delete failed:", str(e))
+
+# ==========================================================
+# PLAN SLIDE MEDIA UPLOAD
+# ==========================================================
+def upload_plan_slide(file):
+    """
+    Upload plan slide media to Firebase
+    Path: plan_media/
+    """
+
+    # Validate size
+    if file.size > MAX_FILE_SIZE:
+        raise Exception("File too large")
+
+    content_type = getattr(file, "content_type", None)
+
+    if not content_type:
+        content_type, _ = mimetypes.guess_type(file.name)
+
+    if content_type in ALLOWED_IMAGE_TYPES:
+        media_type = "image"
+
+    elif content_type in ALLOWED_VIDEO_TYPES:
+        media_type = "video"
+
+    else:
+        raise Exception("Invalid file type")
+
+    url, _ = upload_file(file, "plan_media")
+
+    return url, media_type

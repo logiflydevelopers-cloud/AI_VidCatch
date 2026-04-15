@@ -28,7 +28,6 @@ def get_dashboard_data():
 
     users_qs = User.objects.filter(is_staff=False)
 
-    # 🔹 Credit data (✅ FIXED)
     credits = UserCredits.objects.filter(user__is_staff=False)
 
     credit_dict = {}
@@ -38,7 +37,6 @@ def get_dashboard_data():
             "balance": c.balance or 0
         }
 
-    # 🔹 Subscription data
     subscriptions = UserSubscription.objects.filter(user__is_staff=False).select_related("current_plan")
 
     subscription_dict = {}
@@ -48,7 +46,6 @@ def get_dashboard_data():
             "plan_expiry": sub.end_date
         }
 
-    # 🔹 Final user list
     users_list = []
 
     for user in users_qs:

@@ -16,7 +16,6 @@ from apps.features.admin_views import (
 
 from apps.dashboard.views import dashboard
 
-# ✅ USERS
 from apps.users.admin_views import (
     delete_user,
     admin_user_detail
@@ -30,6 +29,7 @@ from apps.notifications.admin_views import (
 )
 
 from apps.subscriptions.admin_views import plans, plan_detail
+from apps.plan_slider.admin_views import plan_slides, plan_slide_detail
 
 
 urlpatterns = [
@@ -79,4 +79,7 @@ urlpatterns = [
     # ==========================
     path("plans/", plans),
     path("plans/<str:plan_id>/", plan_detail),
+
+    path("plan-slides/", plan_slides),
+    path("<str:slide_id>/", plan_slide_detail),
 ]

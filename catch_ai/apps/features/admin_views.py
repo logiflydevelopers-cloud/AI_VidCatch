@@ -49,7 +49,7 @@ def get_feature(request, feature_id):
         allowed_models = f.allowed_models.all()
 
         # ----------------------------------
-        # 🔥 BUILD NESTED MODEL MAPPING
+        # BUILD NESTED MODEL MAPPING
         # ----------------------------------
         def build_model_mapping(data):
             if isinstance(data, dict):
@@ -83,7 +83,7 @@ def get_feature(request, feature_id):
         }
 
         # ==========================================
-        # ✅ MULTI MODE (NESTED SUPPORT)
+        # MULTI MODE (NESTED SUPPORT)
         # ==========================================
         if f.is_multi_mode:
             response.update({
@@ -91,7 +91,7 @@ def get_feature(request, feature_id):
             })
 
         # ==========================================
-        # ✅ SINGLE MODE
+        # SINGLE MODE
         # ==========================================
         else:
             default_model_id = f.default_model_id
