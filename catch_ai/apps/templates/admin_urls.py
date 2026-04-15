@@ -22,10 +22,7 @@ from apps.users.admin_views import (
 )
 
 from apps.notifications.admin_views import (
-    get_all_notifications,
-    create_notification,
-    update_notification,
-    delete_notification
+    notifications, notification_detail
 )
 
 from apps.subscriptions.admin_views import plans, plan_detail
@@ -69,10 +66,8 @@ urlpatterns = [
     # ==========================
     # NOTIFICATIONS
     # ==========================
-    path("notifications/", get_all_notifications),
-    path("notifications/create/", create_notification),
-    path("notifications/<str:notif_id>/update/", update_notification),
-    path("notifications/<str:notif_id>/delete/", delete_notification),
+    path("notifications/", notifications),
+    path("notifications/<str:notif_id>/", notification_detail),
 
     # ==========================
     # PLANS

@@ -69,13 +69,8 @@ class Notification(models.Model):
         default="notification"
     )
 
-    # CTA
-    cta_text = models.CharField(max_length=100, blank=True, null=True)
-    cta_link = models.URLField(blank=True, null=True)
-
     # Control flags
     is_active = models.BooleanField(default=True)
-    is_dismissible = models.BooleanField(default=True)
 
     # Scheduling
     start_time = models.DateTimeField(blank=True, null=True)
