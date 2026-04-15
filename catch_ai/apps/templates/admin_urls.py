@@ -16,8 +16,11 @@ from apps.features.admin_views import (
 
 from apps.dashboard.views import dashboard
 
-# ✅ UPDATED USER IMPORT
-from apps.users.admin_views import delete_user, admin_user_detail
+# ✅ USERS
+from apps.users.admin_views import (
+    delete_user,
+    admin_user_detail
+)
 
 from apps.notifications.admin_views import (
     get_all_notifications,
@@ -46,7 +49,7 @@ urlpatterns = [
     path("ai-models/<str:model_id>/", update_ai_model),
 
     # ==========================
-    # FEATURES (FIXED DUPLICATES)
+    # FEATURES
     # ==========================
     path("features/", list_features),
     path("features/<str:feature_id>/", get_feature),
@@ -58,9 +61,9 @@ urlpatterns = [
     path("dashboard/", dashboard),
 
     # ==========================
-    # USERS (🔥 UPDATED)
+    # USERS
     # ==========================
-    path("users/<str:user_id>/", admin_user_detail),  # ✅ GET + PATCH
+    path("users/<str:user_id>/", admin_user_detail),       # GET + PATCH + POST
     path("users/<str:user_id>/delete/", delete_user),
 
     # ==========================
