@@ -55,6 +55,7 @@ def get_dashboard_data():
         users_list.append({
             "id": user.id,
             "email": user.email,
+            "name": user.username,
             "created_at": user.created_at,
             "status": user.status,
             "last_login": user.last_login,
