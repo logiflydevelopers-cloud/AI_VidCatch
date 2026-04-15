@@ -74,12 +74,22 @@ def get_dashboard_data():
     payments_list = []
 
     for p in payments_qs:
+
+        # ==========================
+        # GET SUBSCRIPTION
+        # ==========================
+        subscription = UserSubscription.objects.filter(
+            user=p.user,
+            current_plan=p.plan,
+            status="active"
+        ).order_by("-created_at").first()
+
         payments_list.append({
             "id": p.id,
             "user_id": p.user.id,
             "email": p.user.email,
-            
-            "plan_id": p.plan.id,
+
+            "plan_id": p.plan.id if p.plan else None,
             "plan_name": p.plan.name if p.plan else "Free",
 
             "amount": p.amount,
@@ -89,6 +99,7 @@ def get_dashboard_data():
             "provider_order_id": p.provider_order_id,
 
             "created_at": p.created_at,
+            "expire_at": subscription.end_date if subscription else None
         })
 
     credits_qs = CreditTransaction.objects.select_related(
