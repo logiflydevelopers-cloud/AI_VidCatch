@@ -8,7 +8,13 @@ from .models import UserCredits, CreditTransaction
 # ADD CREDITS
 # ============================
 @transaction.atomic
-def add_credits(user, amount, transaction_type=""):
+def add_credits(user, amount, transaction_type="Admin reward"):
+
+    amount = int(amount)
+
+    if amount <= 0:
+        raise ValidationError("Amount must be greater than 0")
+
     wallet, _ = UserCredits.objects.get_or_create(user=user)
 
     before = wallet.balance
@@ -33,6 +39,12 @@ def add_credits(user, amount, transaction_type=""):
 # ============================
 @transaction.atomic
 def deduct_credits(user, amount, transaction_type="", template=None, feature=None):
+
+    amount = int(amount)
+
+    if amount <= 0:
+        raise ValidationError("Amount must be greater than 0")
+
     wallet, _ = UserCredits.objects.get_or_create(user=user)
 
     if wallet.balance < amount:
@@ -62,6 +74,7 @@ def deduct_credits(user, amount, transaction_type="", template=None, feature=Non
 # ============================
 @transaction.atomic
 def apply_plan_purchase(user, plan):
+
     wallet, _ = UserCredits.objects.get_or_create(user=user)
 
     before = wallet.balance
@@ -80,4 +93,40 @@ def apply_plan_purchase(user, plan):
         balance_before=before,
         balance_after=wallet.balance,
         transaction_type=f"Plan purchase: {plan.name}"
+    )
+
+
+# ============================
+# EXPIRE PLAN (RESET ALL CREDITS)
+# ============================
+@transaction.atomic
+def expire_plan(user):
+
+    wallet, _ = UserCredits.objects.get_or_create(user=user)
+
+    # 🚫 Prevent duplicate expiry logs
+    if wallet.balance == 0:
+        return
+
+    before = wallet.balance
+
+    # ==========================
+    # RESET ALL CREDITS
+    # ==========================
+    wallet.balance = 0
+    wallet.used_credits = 0
+    wallet.total_credits = 0  # ✅ keep data consistent
+
+    wallet.save()
+
+    # ==========================
+    # LOG TRANSACTION
+    # ==========================
+    CreditTransaction.objects.create(
+        user=user,
+        amount=before,
+        transaction_action="deduct",
+        balance_before=before,
+        balance_after=0,
+        transaction_type="Plan expired - credits reset"
     )
