@@ -118,12 +118,12 @@ def run_generation(self, generation_id, payload):
         # ============================
         if generation.template:
             # Remove feature so FastAPI does NOT validate mapping
-            payload.pop("feature", None)
+            payload["feature"] = generation.feature_type or "image_to_video"
 
         # ============================
         # CALL FASTAPI
         # ============================
-        logger.info(f"FINAL PAYLOAD TO FASTAPI: {json.dumps(payload, indent=2)}")  # ✅ DEBUG
+        logger.info(f"FINAL PAYLOAD TO FASTAPI: {json.dumps(payload, indent=2)}")  
 
         response = requests.post(
             FASTAPI_GENERATE_URL,
