@@ -171,8 +171,7 @@ def update_template(request, template_id):
             cover_file,
             f"templates/{template.id}/cover"
         )
-        template.cover_image = url  # ✅ string
-
+        template.cover_image = url  
     # =========================
     # HANDLE PREVIEW MEDIA
     # =========================
@@ -188,7 +187,7 @@ def update_template(request, template_id):
             )
             preview_urls.append(url)
 
-        template.preview_media = preview_urls  # ✅ list
+        template.preview_media = preview_urls  
 
     template.save()
 

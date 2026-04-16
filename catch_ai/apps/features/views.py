@@ -102,41 +102,60 @@ def get_feature_models(feature):
 # ==========================================================
 def get_normalized_credits(feature):
 
+    feature_type = (feature.feature_type or "").strip().lower()
     credits_config = feature.credits_config or {}
 
-    # ============================
-    # MULTI MODE
-    # ============================
-    if feature.is_multi_mode:
+    EXCLUDED_FEATURES = ["text_to_video", "image_to_video", "colorize"]
 
-        normalized = {
-            "fast": {},
-            "standard": {},
-            "advanced": {}
+    # ============================
+    # SPECIAL FEATURES
+    # ============================
+    if feature_type in EXCLUDED_FEATURES:
+
+        # MULTI MODE
+        if feature.is_multi_mode:
+
+            normalized = {
+                "fast": {},
+                "standard": {},
+                "advanced": {}
+            }
+
+            for key, modes in credits_config.items():
+
+                if not isinstance(modes, dict):
+                    continue
+
+                for mode in ["fast", "standard", "advanced"]:
+                    value = modes.get(mode)
+
+                    if value is not None:
+                        normalized[mode][key] = value
+
+            return normalized
+
+        # SINGLE MODE
+        result = {
+            "default": credits_config if credits_config else {}
         }
-
-        for key, modes in credits_config.items():
-
-            if not isinstance(modes, dict):
-                continue
-
-            for mode in ["fast", "standard", "advanced"]:
-                value = modes.get(mode)
-
-                if value is not None:
-                    normalized[mode][key] = value
-
-        return normalized
+        return result
 
     # ============================
-    # SINGLE MODE
+    # NORMAL FEATURES
     # ============================
-    else:
-        return {
-            "default": credits_config
+
+    result = {
+        "default": {
+            "credit_cost": feature.credit_cost if feature.credit_cost is not None else 0
         }
+    }
+
+    return result
 
 def get_feature_settings(feature):
+
+    EXCLUDED_KEYS = ["config"]
+    EXCLUDED_MODES = ["config"]   # ✅ NEW
 
     # ============================
     # MULTI MODE
@@ -147,7 +166,18 @@ def get_feature_settings(feature):
         qs = feature.settings.all().order_by("display_order")
 
         for s in qs:
-            # Ensure mode exists
+
+            key = (s.key or "").strip().lower()
+            mode = (s.mode or "").strip().lower()
+
+            # ❌ SKIP CONFIG MODE
+            if mode in EXCLUDED_MODES:
+                continue
+
+            # ❌ SKIP CONFIG KEY (extra safety)
+            if key in EXCLUDED_KEYS:
+                continue
+
             if s.mode not in settings:
                 settings[s.mode] = {}
 
@@ -163,6 +193,12 @@ def get_feature_settings(feature):
     qs = feature.settings.all().order_by("display_order")
 
     for s in qs:
+
+        key = (s.key or "").strip().lower()
+
+        if key in EXCLUDED_KEYS:
+            continue
+
         settings[s.key] = s.options
 
     return settings

@@ -19,6 +19,7 @@ class FeatureSerializer(serializers.ModelSerializer):
 
     model_mapping = serializers.SerializerMethodField()
     default_model = serializers.SerializerMethodField()
+    credits = serializers.SerializerMethodField()   # ✅ NEW
 
     class Meta:
         model = Features
@@ -26,13 +27,31 @@ class FeatureSerializer(serializers.ModelSerializer):
             "id",
             "name",
             "feature_type",
-            "credit_cost",
+            "credits",    
             "is_premium",
-            "model_mapping",   # ✅ FIXED
+            "model_mapping",
             "default_model",
             "input_schema",
-            "default_settings",  # ✅ FIXED comma
+            "default_settings",
         ]
+
+    # -----------------------------
+    # 🔥 GET CREDITS (NEW)
+    # -----------------------------
+    def get_credits(self, obj):
+
+        EXCLUDED_FEATURES = ["text_to_video", "image_to_video"]
+
+        # 👉 Keep existing credits for special features
+        if obj.feature_type in EXCLUDED_FEATURES:
+            return obj.credits or {}
+
+        # 👉 Default format for normal features
+        return {
+            "default": {
+                "credit_cost": obj.credit_cost or 0
+            }
+        }
 
     # -----------------------------
     # GET MODEL MAPPING
@@ -45,9 +64,6 @@ class FeatureSerializer(serializers.ModelSerializer):
 
             models_data = {}
 
-            # ----------------------------------
-            # 🔥 COLLECT ALL MODEL IDS
-            # ----------------------------------
             model_ids = set()
 
             for value in obj.model_mapping.values():
@@ -60,9 +76,6 @@ class FeatureSerializer(serializers.ModelSerializer):
                     if value:
                         model_ids.add(str(value))
 
-            # ----------------------------------
-            # 🔥 FETCH MODELS
-            # ----------------------------------
             models = AIModel.objects.filter(
                 id__in=model_ids,
                 is_active=True
@@ -70,14 +83,9 @@ class FeatureSerializer(serializers.ModelSerializer):
 
             model_map = {str(m.id): m for m in models}
 
-            # ----------------------------------
-            # 🔥 BUILD RESPONSE
-            # ----------------------------------
             for key, value in obj.model_mapping.items():
 
-                # ✅ NESTED
                 if isinstance(value, dict):
-
                     models_data[key] = {}
 
                     for sub_key, model_id in value.items():
@@ -90,7 +98,6 @@ class FeatureSerializer(serializers.ModelSerializer):
                             } if model else None
                         )
 
-                # ✅ FLAT
                 else:
                     model = model_map.get(str(value))
 
@@ -173,13 +180,12 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
             duration = credits_config.get("duration", {})
             fast = duration.get("fast", {})
 
-            # ✅ pick minimum cost (best approach)
             data["credit_cost"] = min(fast.values()) if fast else 0
 
         return data
 
     # ==========================================
-    # 🔥 VALIDATION (CLEANED)
+    # VALIDATION
     # ==========================================
     def validate(self, data):
 
@@ -193,7 +199,7 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
 
         existing_mapping = instance.model_mapping or {}
 
-        # 🎨 COLORIZE
+        # COLORIZE
         if feature_type == "colorize" and (
             "bw_color_model" in data or "recolor_model" in data
         ):
@@ -212,7 +218,7 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
                 "recolor": str(recolor.id),
             }
 
-        # 🎬 MULTI MODE
+        # MULTI MODE
         elif is_multi_mode and any(
             k in data for k in ["fast_model", "standard_model", "advanced_model"]
         ):
