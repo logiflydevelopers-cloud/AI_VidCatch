@@ -654,7 +654,7 @@ class GenerationConfigAdmin(admin.ModelAdmin):
         "config_type",
         "feature_type",
         "model",
-        "credits",   
+        "credit_cost",   
         "is_active",
         "created_at",
     )

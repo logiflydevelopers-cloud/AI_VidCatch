@@ -3,8 +3,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 
-from .models import Template
-from .serializers import TemplateSerializer
+from .models import Template, GenerationConfig
+from .serializers import TemplateSerializer, GenerationConfigSerializer
+
 
 
 # ================================
@@ -29,9 +30,19 @@ def list_templates(request):
         "allowed_models"
     ).order_by("display_order", "-created_at")
 
-    serializer = TemplateSerializer(templates, many=True)
+    template_data = TemplateSerializer(templates, many=True).data
 
-    return Response(serializer.data)
+    # 👇 ADD AUTO VIDEO CONFIG
+    auto_video = GenerationConfig.objects.filter(
+        config_type="auto_video"
+    )
+
+    auto_video_data = GenerationConfigSerializer(auto_video, many=True).data
+
+    return Response({
+        "templates": template_data,
+        "auto_video": auto_video_data
+    })
 
 
 # ================================

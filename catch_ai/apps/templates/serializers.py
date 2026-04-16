@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Template, AIModel
+from .models import Template, AIModel, GenerationConfig
 
 # AI MODEL SERIALIZER
 class AIModelSerializer(serializers.ModelSerializer):
@@ -14,7 +14,19 @@ class AIModelSerializer(serializers.ModelSerializer):
             "is_active"
         ]
 
-
+class GenerationConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GenerationConfig
+        fields = [
+            "id",
+            "name",
+            "config_type",
+            "feature_type",
+            "prompt_template",
+            "is_active",
+            "model_id",
+            "credit_cost"
+        ]
 
 # USER SERIALIZER
 class TemplateSerializer(serializers.ModelSerializer):

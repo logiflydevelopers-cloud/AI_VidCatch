@@ -17,11 +17,11 @@ class Command(BaseCommand):
                 "feature_type": "image_to_video",
             },
             {
-                "name": "Background Change",
+                "name": "Bg Change",
                 "feature_type": "background_change",
             },
             {
-                "name": "Background Remove",
+                "name": "Bg Remove",
                 "feature_type": "background_remove",
             },
             {
