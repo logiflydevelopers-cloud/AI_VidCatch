@@ -64,7 +64,7 @@ def run_generation(self, generation_id, payload):
             deduct_credits(
                 user=generation.user,
                 amount=cost,
-                transaction_type=f"Generation ({generation.source_type})",
+                transaction_type=f"Generation ({'template' if generation.template else 'feature'})",  # ✅ FIX
                 template=generation.template,
                 feature=generation.feature
             )
@@ -93,9 +93,6 @@ def run_generation(self, generation_id, payload):
             if not image:
                 raise Exception("Image is required for auto video")
 
-            # ============================
-            # SETTINGS FETCH FROM DB
-            # ============================
             settings_data = config.default_settings
 
             if isinstance(settings_data, str):
@@ -104,9 +101,6 @@ def run_generation(self, generation_id, payload):
             if not isinstance(settings_data, dict):
                 raise Exception("Invalid settings in DB")
 
-            # ============================
-            # BUILD FINAL PAYLOAD
-            # ============================
             payload = {
                 "feature": config.feature_type,
                 "model": config.model.code,
@@ -120,8 +114,17 @@ def run_generation(self, generation_id, payload):
             logger.info(f"FINAL PAYLOAD TO FASTAPI: {json.dumps(payload, indent=2)}")
 
         # ============================
+        # ✅ FIX: TEMPLATE BYPASS FEATURE VALIDATION
+        # ============================
+        if generation.template:
+            # Remove feature so FastAPI does NOT validate mapping
+            payload.pop("feature", None)
+
+        # ============================
         # CALL FASTAPI
         # ============================
+        logger.info(f"FINAL PAYLOAD TO FASTAPI: {json.dumps(payload, indent=2)}")  # ✅ DEBUG
+
         response = requests.post(
             FASTAPI_GENERATE_URL,
             json=payload,
@@ -186,7 +189,7 @@ def run_generation(self, generation_id, payload):
                 add_credits(
                     user=generation.user,
                     amount=generation.credit_used,
-                    transaction_action=f"Refund for failed generation {generation.id}"
+                    transaction_type=f"Refund for failed generation {generation.id}"
                 )
 
                 generation.is_refunded = True
