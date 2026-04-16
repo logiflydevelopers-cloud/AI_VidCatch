@@ -177,8 +177,12 @@ def admin_user_detail(request, user_id):
                 transaction_action = "add"
                 transaction_type = description or "Admin reward"
 
-                balance_after = balance_before + amount
                 user_credits.total_credits += amount
+                balance_after = balance_before + amount
+
+                # ✅ normal save
+                user_credits.balance = balance_after
+                user_credits.save(update_fields=["total_credits", "balance"])
 
             else:
                 transaction_action = "deduct"
@@ -187,17 +191,18 @@ def admin_user_detail(request, user_id):
                 if balance_before < amount:
                     return Response({"error": "Insufficient credits"}, status=400)
 
-                balance_after = balance_before - amount
                 user_credits.used_credits += amount
+                balance_after = balance_before - amount
+
+                # ✅ IMPORTANT FIX (allow_used_update=True)
+                user_credits.balance = balance_after
+                user_credits.save(
+                    allow_used_update=True,
+                    update_fields=["used_credits", "balance"]
+                )
 
             # ==========================
-            # UPDATE MAIN TABLE ✅
-            # ==========================
-            user_credits.balance = balance_after
-            user_credits.save()
-
-            # ==========================
-            # CREATE TRANSACTION LOG ✅
+            # CREATE TRANSACTION LOG
             # ==========================
             CreditTransaction.objects.create(
                 user=user,
