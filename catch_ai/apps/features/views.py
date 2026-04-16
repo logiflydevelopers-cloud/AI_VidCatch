@@ -240,8 +240,8 @@ def get_normalized_credits(feature):
 
 def get_feature_settings(feature):
 
-    EXCLUDED_KEYS = ["config"]
-    EXCLUDED_MODES = ["config"]   # ✅ NEW
+    EXCLUDED_KEYS = ["config", "enabled"]
+    EXCLUDED_MODES = ["config", "enabled"]   # ✅ NEW
 
     # ============================
     # MULTI MODE
