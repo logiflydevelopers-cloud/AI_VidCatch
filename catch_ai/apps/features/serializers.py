@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from apps.features.models import Features,  FeatureSetting
 from apps.templates.models import AIModel
-
+import copy
 
 # ==========================================================
 # AI MODEL SERIALIZER (Reusable)
@@ -308,26 +308,47 @@ class FeatureUpdateSerializer(serializers.ModelSerializer):
         model_mapping = validated_data.pop("model_mapping", None)
         allowed_models = validated_data.pop("allowed_models", None)
 
+        # 🔥 IMPORTANT: handle JSON separately
+        credits_config = validated_data.pop("credits_config", None)
+
         validated_data.pop("fast_model", None)
         validated_data.pop("standard_model", None)
         validated_data.pop("advanced_model", None)
         validated_data.pop("bw_color_model", None)
         validated_data.pop("recolor_model", None)
 
+        # =========================
+        # NORMAL FIELDS UPDATE
+        # =========================
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
+        # =========================
+        # 🔥 CRITICAL FIX (JSON FULL REPLACE)
+        # =========================
+        if credits_config is not None:
+            instance.credits_config = copy.deepcopy(credits_config)
+
+        # =========================
+        # MODEL MAPPING
+        # =========================
         if model_mapping is not None:
             instance.model_mapping = model_mapping
 
+        # =========================
+        # CREDIT COST
+        # =========================
         if "credit_cost" in validated_data:
             instance.credit_cost = validated_data["credit_cost"]
 
         instance.save()
 
-        # 🔥 SYNC SETTINGS
+        # 🔥 SYNC SETTINGS AFTER SAVE
         self.sync_feature_settings(instance)
 
+        # =========================
+        # MANY-TO-MANY
+        # =========================
         if allowed_models is not None:
             instance.allowed_models.set(allowed_models)
 
