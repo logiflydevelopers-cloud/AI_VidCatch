@@ -113,7 +113,7 @@ def create_generation(request):
             credit_cost = template.credit_cost
             model_provider = getattr(model, "provider", None)
 
-            settings = user_settings or {}
+            settings = template.default_settings 
 
         # ==========================================================
         # FEATURE FLOW

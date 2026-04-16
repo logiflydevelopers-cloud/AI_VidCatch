@@ -122,8 +122,27 @@ def run_generation(self, generation_id, payload):
 
         # ============================
         # CALL FASTAPI
-        # ============================
-        logger.info(f"FINAL PAYLOAD TO FASTAPI: {json.dumps(payload, indent=2)}")  
+        # ============================  
+
+        if generation.template:
+
+            settings_data = payload.get("settings")
+
+            # If missing → load from DB
+            if not settings_data:
+                settings_data = generation.template.default_settings
+
+            # Convert string → dict
+            if isinstance(settings_data, str):
+                settings_data = json.loads(settings_data)
+
+            # Final safety
+            if not isinstance(settings_data, dict):
+                settings_data = {}
+
+            payload["settings"] = settings_data
+
+        logger.info(f"FINAL PAYLOAD TO FASTAPI: {json.dumps(payload, indent=2)}")
 
         response = requests.post(
             FASTAPI_GENERATE_URL,
