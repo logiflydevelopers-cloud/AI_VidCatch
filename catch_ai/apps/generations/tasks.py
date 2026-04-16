@@ -142,6 +142,24 @@ def run_generation(self, generation_id, payload):
 
             payload["settings"] = settings_data
 
+        if payload.get("settings"):
+            settings = payload["settings"]
+
+            # 🔥 FIX: convert duration
+            if "duration" in settings:
+                if settings["duration"] == "5_sec":
+                    settings["duration"] = 5
+                elif settings["duration"] == "10_sec":
+                    settings["duration"] = 10
+                elif settings["duration"] == "4_sec":
+                    settings["duration"] = 4
+                elif settings["duration"] == "6_sec":
+                    settings["duration"] = 6
+                elif settings["duration"] == "8_sec":
+                    settings["duration"] = 8
+
+            payload["settings"] = settings
+
         logger.info(f"FINAL PAYLOAD TO FASTAPI: {json.dumps(payload, indent=2)}")
 
         response = requests.post(
