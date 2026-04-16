@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404
 from .models import Features
 from apps.templates.models import AIModel
 
-SPECIAL_FEATURES = ["text_to_video", "image_to_video", "colorize"]
+SPECIAL_FEATURES = ["text_to_video", "image_to_video"]
 
 # ==========================================================
 # HELPER: GET MODELS
@@ -97,6 +97,83 @@ def get_feature_models(feature):
         for m in feature.allowed_models.filter(is_active=True)
     ]
 
+def clean_audio_config(audio):
+    if not isinstance(audio, dict):
+        return audio
+
+    # remove repeated config nesting
+    config = audio.get("config", {})
+
+    while isinstance(config, dict) and "config" in config:
+        config = config["config"]
+
+    return {
+        "enabled": audio.get("enabled", True),
+        "config": config
+    }
+
+def transform_credits_structure(credits):
+
+    if not isinstance(credits, dict):
+        return {}
+
+    result = {}
+
+    # =========================
+    # AUDIO (FLAT)
+    # =========================
+    audio_config = {}
+
+    for mode in ["fast", "standard", "advanced"]:
+        mode_data = credits.get(mode, {})
+
+        audio = mode_data.get("audio", {})
+        if not isinstance(audio, dict):
+            continue
+
+        if audio.get("enabled"):
+            config = audio.get("config", {})
+
+            # unwrap nested config if any
+            while isinstance(config, dict) and "config" in config:
+                config = config["config"]
+
+            for k, v in config.items():
+                audio_config[k] = v
+
+    if audio_config:
+        result["audio"] = audio_config
+
+    # =========================
+    # DURATION
+    # =========================
+    duration = {}
+
+    for mode in ["fast", "standard", "advanced"]:
+        mode_data = credits.get(mode, {})
+
+        if "duration" in mode_data:
+            duration[mode] = mode_data["duration"]
+
+    if duration:
+        result["duration"] = duration
+
+    # =========================
+    # RESOLUTION
+    # =========================
+    resolution = {}
+
+    for mode in ["fast", "standard", "advanced"]:
+        mode_data = credits.get(mode, {})
+
+        if "resolution" in mode_data:
+            resolution[mode] = mode_data["resolution"]
+
+    if resolution:
+        result["resolution"] = resolution
+
+    return result
+
 # ==========================================================
 # HELPER: MERGE BASE + ADDON CREDITS 
 # ==========================================================
@@ -105,52 +182,61 @@ def get_normalized_credits(feature):
     feature_type = (feature.feature_type or "").strip().lower()
     credits_config = feature.credits_config or {}
 
-    EXCLUDED_FEATURES = ["text_to_video", "image_to_video", "colorize"]
+    MULTI_MODE_FEATURES = ["text_to_video", "image_to_video"]
 
-    # ============================
-    # SPECIAL FEATURES
-    # ============================
-    if feature_type in EXCLUDED_FEATURES:
+    # ======================================================
+    # MULTI-MODE FEATURES (TEXT TO VIDEO, IMAGE TO VIDEO)
+    # ======================================================
+    if feature_type in MULTI_MODE_FEATURES and feature.is_multi_mode:
 
-        # MULTI MODE
-        if feature.is_multi_mode:
+        normalized = {
+            "fast": {},
+            "standard": {},
+            "advanced": {}
+        }
 
-            normalized = {
-                "fast": {},
-                "standard": {},
-                "advanced": {}
-            }
+        for key, value in credits_config.items():
 
-            for key, modes in credits_config.items():
-
-                if not isinstance(modes, dict):
-                    continue
-
+            # ============================
+            # CASE 1: MODE-BASED
+            # ============================
+            if isinstance(value, dict) and any(
+                k in ["fast", "standard", "advanced"] for k in value.keys()
+            ):
                 for mode in ["fast", "standard", "advanced"]:
-                    value = modes.get(mode)
+                    if mode in value:
+                        normalized[mode][key] = value[mode]
 
-                    if value is not None:
+            # ============================
+            # CASE 2: GLOBAL (audio etc.)
+            # ============================
+            else:
+                for mode in ["fast", "standard", "advanced"]:
+
+                    if key == "audio":
+                        normalized[mode][key] = clean_audio_config(value)
+                    else:
                         normalized[mode][key] = value
 
-            return normalized
+        return normalized
 
-        # SINGLE MODE
-        result = {
-            "default": credits_config if credits_config else {}
+    # ======================================================
+    # SINGLE / NORMAL FEATURES (COLORIZE ETC.)
+    # ======================================================
+    # 🔥 PRIORITY: credits_config
+    if credits_config:
+        return {
+            "default": credits_config
         }
-        return result
 
-    # ============================
-    # NORMAL FEATURES
-    # ============================
-
-    result = {
+    # ======================================================
+    # FALLBACK (SIMPLE CREDIT)
+    # ======================================================
+    return {
         "default": {
-            "credit_cost": feature.credit_cost if feature.credit_cost is not None else 0
+            "credit_cost": feature.credit_cost or 0
         }
     }
-
-    return result
 
 def get_feature_settings(feature):
 
@@ -217,11 +303,19 @@ def list_features(request):
     data = []
 
     for f in queryset:
+
+        normalized = get_normalized_credits(f)
+
+        if f.feature_type in SPECIAL_FEATURES:
+            credits = transform_credits_structure(normalized)
+        else:
+            credits = normalized
+
         data.append({
             "id": f.id,
             "name": f.name,
             "feature_type": f.feature_type,
-            "credits": get_normalized_credits(f),
+            "credits": credits,
             "is_premium": f.is_premium,
             "models": get_feature_models(f),
 
@@ -245,11 +339,18 @@ def get_feature(request, feature_id):
 
     feature = get_object_or_404(Features, id=feature_id, is_active=True)
 
+    normalized = get_normalized_credits(feature)
+
+    if feature.feature_type in SPECIAL_FEATURES:
+        credits = transform_credits_structure(normalized)
+    else:
+        credits = normalized
+
     return Response({
         "id": feature.id,
         "name": feature.name,
         "feature_type": feature.feature_type,
-        "credits": get_normalized_credits(feature),
+        "credits": credits,
         "is_premium": feature.is_premium,
         "models": get_feature_models(feature),
 
