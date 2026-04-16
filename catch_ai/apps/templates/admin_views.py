@@ -135,9 +135,6 @@ def create_template(request):
             "error": str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-# ================================
-# UPDATE TEMPLATE
-# ================================
 @csrf_exempt
 @api_view(["PUT"])
 @permission_classes([IsAdmin])
@@ -145,18 +142,57 @@ def update_template(request, template_id):
 
     template = get_object_or_404(Template, id=template_id)
 
+    data = request.data.copy()
+
+    # =========================
+    # REMOVE FILE FIELDS
+    # =========================
+    data.pop("cover_image", None)
+    data.pop("preview_media", None)
+
     serializer = AdminTemplateSerializer(
         template,
-        data=request.data,
+        data=data,
         partial=True
     )
 
-    if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=400)
 
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    template = serializer.save()
 
+    # =========================
+    # HANDLE COVER IMAGE
+    # =========================
+    cover_file = request.FILES.get("cover_image")
+
+    if cover_file:
+        url, _ = upload_file(
+            cover_file,
+            f"templates/{template.id}/cover"
+        )
+        template.cover_image = url  # ✅ string
+
+    # =========================
+    # HANDLE PREVIEW MEDIA
+    # =========================
+    preview_files = request.FILES.getlist("preview_media")
+
+    if preview_files:
+        preview_urls = []
+
+        for file in preview_files:
+            url, _ = upload_file(
+                file,
+                f"templates/{template.id}/previews"
+            )
+            preview_urls.append(url)
+
+        template.preview_media = preview_urls  # ✅ list
+
+    template.save()
+
+    return Response(AdminTemplateSerializer(template).data)
 
 # ================================
 # DELETE TEMPLATE
