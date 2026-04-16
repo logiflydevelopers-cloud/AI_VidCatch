@@ -3,7 +3,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAdminUser
 from django.shortcuts import get_object_or_404
 
-from .models import Features
+from .models import Features, FeatureSetting
 from .serializers import FeatureUpdateSerializer
 from apps.templates.models import AIModel
 
@@ -138,24 +138,20 @@ def update_feature(request, feature_id):
     if not is_multi_mode:
         mapping = data.get("model_mapping") or feature.model_mapping or {}
 
-        # Force only default key
         data["model_mapping"] = {
             "default": mapping.get("default")
         }
 
-        # Remove multi-mode fields
         data.pop("standard_credit_cost", None)
         data.pop("advanced_credit_cost", None)
 
     else:
-        # Remove default if switching to multi
         mapping = data.get("model_mapping") or feature.model_mapping or {}
-
         mapping.pop("default", None)
         data["model_mapping"] = mapping
 
     # =========================
-    # SERIALIZER SAVE
+    # SAVE FEATURE
     # =========================
     serializer = FeatureUpdateSerializer(
         feature,
@@ -163,8 +159,81 @@ def update_feature(request, feature_id):
         partial=True
     )
 
-    if serializer.is_valid():
-        serializer.save()
-        return Response(serializer.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=400)
 
-    return Response(serializer.errors, status=400)
+    feature = serializer.save()
+
+    # =========================
+    # 🔥 AUTO SYNC SETTINGS FROM credits_config
+    # =========================
+    KEY_MAP = {
+        "audio": "generate_audio"
+    }
+
+    credits_config = data.get("credits_config")
+
+    if credits_config:
+
+        existing_settings = {
+            (s.mode, s.key): s
+            for s in feature.settings.all()
+        }
+
+        incoming_keys = set()
+
+        for key, value in credits_config.items():
+
+            db_key = KEY_MAP.get(key, key)
+
+            # =========================
+            # CASE 1: BOOLEAN (audio)
+            # =========================
+            if all(isinstance(v, int) for v in value.values()):
+
+                for mode in value.keys():
+
+                    incoming_keys.add((mode, db_key))
+
+                    FeatureSetting.objects.update_or_create(
+                        feature=feature,
+                        key=db_key,
+                        mode=mode,
+                        defaults={
+                            "type": "boolean",
+                            "options": [True, False],
+                            "default_value": False,
+                            "is_required": True
+                        }
+                    )
+
+            # =========================
+            # CASE 2: SELECT (duration/resolution)
+            # =========================
+            else:
+                for mode, options_dict in value.items():
+
+                    options = list(options_dict.keys())
+
+                    incoming_keys.add((mode, db_key))
+
+                    FeatureSetting.objects.update_or_create(
+                        feature=feature,
+                        key=db_key,
+                        mode=mode,
+                        defaults={
+                            "type": "select",
+                            "options": options,
+                            "default_value": options[0] if options else None,
+                            "is_required": True
+                        }
+                    )
+
+        # =========================
+        # DELETE REMOVED SETTINGS
+        # =========================
+        for (mode, key), obj in existing_settings.items():
+            if (mode, key) not in incoming_keys:
+                obj.delete()
+
+    return Response(serializer.data)
