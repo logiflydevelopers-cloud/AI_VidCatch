@@ -272,7 +272,7 @@ def create_generation(request):
                 user=request.user,
                 template=template,
                 feature=feature,
-                source_type=source_type,  # 🔥 IMPORTANT
+                source_type=source_type,  
                 input_data=final_input_data,
                 status="pending",
 

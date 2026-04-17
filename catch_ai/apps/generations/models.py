@@ -59,7 +59,7 @@ class Generation(models.Model):
 
     source_type = models.CharField(
         max_length=20,
-        choices=[("template", "Template"), ("feature", "Feature")],
+        choices=[("template", "Template"), ("feature", "Feature"), ("auto_video", "Auto Video")],
         null=True,
         blank=True
     )
