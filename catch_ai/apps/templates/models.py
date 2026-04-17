@@ -195,7 +195,7 @@ class GenerationConfig(models.Model):
         blank=True
     )
 
-    prompt_templates = models.JSONField(
+    prompt_template = models.JSONField(
         default=list,
         help_text="List of prompts. System will randomly pick one."
     )
