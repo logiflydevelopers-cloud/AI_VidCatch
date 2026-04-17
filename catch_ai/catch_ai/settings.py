@@ -54,9 +54,9 @@ STATICFILES_DIRS = [
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 CELERY_BEAT_SCHEDULE = {
-    "delete-old-generations-daily": {
-        "task": "apps.generations.tasks.delete_old_generations",
-        "schedule": crontab(minute="*/5"),  # every day at midnight
+    "process-notifications-every-minute": {
+        "task": "apps.notifications.tasks.process_notifications",
+        "schedule": 60.0,  # every 60 seconds
     },
 }
 

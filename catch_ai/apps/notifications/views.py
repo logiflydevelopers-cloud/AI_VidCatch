@@ -7,7 +7,7 @@ from rest_framework.response import Response
 
 from .models import Notification
 from .serializers import NotificationSerializer
-
+from .services import handle_app_open
 
 @api_view(["GET"])
 def get_active_notifications(request):
@@ -56,3 +56,14 @@ def get_active_banner(request):
     return Response({
         "banner": serializer.data
     })
+
+@api_view(["POST"])
+def app_open(request):
+    """
+    Call this when app starts
+    """
+    user = request.user
+
+    handle_app_open(user)
+
+    return Response({"message": "App open tracked"})

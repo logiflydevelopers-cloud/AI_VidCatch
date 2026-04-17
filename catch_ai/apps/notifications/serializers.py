@@ -12,7 +12,6 @@ class NotificationSerializer(serializers.ModelSerializer):
             "title",
             "message",
             "notification_type",
-            "banner_type",
             "display_type",
             "is_active",
             "start_time",

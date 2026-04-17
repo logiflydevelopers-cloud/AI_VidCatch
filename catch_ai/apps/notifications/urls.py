@@ -6,6 +6,7 @@ from . import views
 urlpatterns = [
     # User APIs
     path("banner/", views.get_active_banner),
-    path("all/", views.get_active_notifications)
+    path("all/", views.get_active_notifications),
+    path("app_open/",views.app_open)
 ]
 
