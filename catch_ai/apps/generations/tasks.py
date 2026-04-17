@@ -162,12 +162,25 @@ def run_generation(self, generation_id, payload):
             # RANDOM PROMPT
             prompt = get_random_prompt(config, last_prompt)
 
+            # 🔥 CRITICAL FIX (DO NOT SKIP)
+            # handle bad DB / nested / wrong formats
+            if isinstance(prompt, list):
+                prompt = random.choice(prompt)
+
+            if not isinstance(prompt, str):
+                raise Exception(f"Invalid prompt type: {type(prompt)}")
+
+            prompt = prompt.strip()
+
+            # ============================
+            # FINAL PAYLOAD
+            # ============================
             payload = {
                 "feature": config.feature_type,
                 "model": config.model.model_name,
                 "inputs": {
                     "image_urls": [image],
-                    "prompt": prompt
+                    "prompt": prompt   
                 },
                 "settings": settings_data
             }
