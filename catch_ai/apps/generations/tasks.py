@@ -20,20 +20,16 @@ FASTAPI_GENERATE_URL = settings.FASTAPI_GENERATE_URL
 logger = logging.getLogger(__name__)
 
 def get_random_prompt(config, last_prompt=None):
-    prompts = config.prompt_templates or []
+    prompts = config.prompt_template or [] 
 
-    # No prompts
     if not prompts:
         return ""
 
-    # Only one prompt
     if len(prompts) == 1:
         return prompts[0]
 
-    # Remove last used prompt
     filtered = [p for p in prompts if p != last_prompt]
 
-    # Fallback if all same
     if not filtered:
         filtered = prompts
 
