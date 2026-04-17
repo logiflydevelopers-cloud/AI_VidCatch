@@ -55,7 +55,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 CELERY_BEAT_SCHEDULE = {
     "process-notifications-every-minute": {
-        "task": "apps.notifications.tasks.process_notifications",
+        "task": "apps.templates.tasks.process_notifications",
         "schedule": 60.0,  # every 60 seconds
     },
 }
