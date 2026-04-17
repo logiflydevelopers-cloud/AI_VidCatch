@@ -75,6 +75,8 @@ def apply_default_settings(feature, mode, user_settings):
 # ==========================================================
 # MAIN API
 # ==========================================================
+import random  # 🔥 ADD THIS
+
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def create_generation(request):
@@ -103,10 +105,7 @@ def create_generation(request):
         if template:
 
             if not template.default_model:
-                return Response(
-                    {"error": "No model configured for this template"},
-                    status=400
-                )
+                return Response({"error": "No model configured for this template"}, status=400)
 
             model = template.default_model
             feature_key = model.feature_type
@@ -125,20 +124,11 @@ def create_generation(request):
             if feature.feature_type in SPECIAL_FEATURES:
 
                 if not quality:
-                    return Response(
-                        {"error": "quality is required"},
-                        status=400
-                    )
+                    return Response({"error": "quality is required"}, status=400)
 
                 if not feature.model_mapping:
-                    return Response(
-                        {"error": "Model mapping not configured"},
-                        status=400
-                    )
+                    return Response({"error": "Model mapping not configured"}, status=400)
 
-                # =========================================
-                # GET VALID MODES
-                # =========================================
                 valid_modes = set()
 
                 if feature.feature_type == "image_to_video":
@@ -149,14 +139,8 @@ def create_generation(request):
                     valid_modes = set(feature.model_mapping.keys())
 
                 if quality not in valid_modes:
-                    return Response(
-                        {"error": f"Invalid quality: {quality}. Allowed: {list(valid_modes)}"},
-                        status=400
-                    )
+                    return Response({"error": f"Invalid quality: {quality}. Allowed: {list(valid_modes)}"}, status=400)
 
-                # =========================================
-                # MODEL SELECTION
-                # =========================================
                 model_id = None
 
                 if feature.feature_type == "image_to_video":
@@ -168,66 +152,34 @@ def create_generation(request):
                     model_id = feature.model_mapping.get(quality)
 
                 if not model_id:
-                    return Response(
-                        {"error": f"No model configured for {quality}"},
-                        status=400
-                    )
+                    return Response({"error": f"No model configured for {quality}"}, status=400)
 
                 try:
                     model = AIModel.objects.get(id=model_id, is_active=True)
                 except AIModel.DoesNotExist:
-                    return Response(
-                        {"error": "Mapped model not found or inactive"},
-                        status=400
-                    )
+                    return Response({"error": "Mapped model not found or inactive"}, status=400)
 
                 if model not in feature.allowed_models.all():
-                    return Response(
-                        {"error": "Model not allowed for this feature"},
-                        status=400
-                    )
+                    return Response({"error": "Model not allowed for this feature"}, status=400)
 
-                # =========================================
-                # CREDIT
-                # =========================================
                 if feature.credits_config and quality in feature.credits_config:
                     credit_cost = feature.credits_config.get(quality, 1)
                 else:
                     credit_cost = feature.credit_cost or 1
 
-                # =========================================
-                # SETTINGS
-                # =========================================
                 try:
-                    settings = validate_feature_settings(
-                        feature,
-                        quality,
-                        user_settings
-                    )
-                    settings = apply_default_settings(
-                        feature,
-                        quality,
-                        settings
-                    )
+                    settings = validate_feature_settings(feature, quality, user_settings)
+                    settings = apply_default_settings(feature, quality, settings)
                 except ValidationError as e:
                     return Response({"error": str(e)}, status=400)
 
-            # ============================
-            # NORMAL FEATURE
-            # ============================
             else:
 
                 if quality:
-                    return Response(
-                        {"error": "Quality not allowed for this feature"},
-                        status=400
-                    )
+                    return Response({"error": "Quality not allowed for this feature"}, status=400)
 
                 if not feature.default_model:
-                    return Response(
-                        {"error": "No model configured for this feature"},
-                        status=400
-                    )
+                    return Response({"error": "No model configured for this feature"}, status=400)
 
                 model = feature.default_model
                 credit_cost = feature.credit_cost or 1
@@ -239,10 +191,34 @@ def create_generation(request):
             return Response({"error": "Invalid request"}, status=400)
 
         # ==========================================================
-        # PROMPT INJECTION
+        # 🔥 FIX 1: CLEAN INPUT DATA
         # ==========================================================
         final_input_data = input_data.copy()
 
+        # 🚨 CRITICAL: convert prompt list → string
+        if "prompt" in final_input_data:
+            prompt = final_input_data["prompt"]
+
+            if isinstance(prompt, list):
+                prompt = random.choice(prompt)
+
+            if not isinstance(prompt, str):
+                return Response(
+                    {"error": f"Invalid prompt type: {type(prompt)}"},
+                    status=400
+                )
+
+            final_input_data["prompt"] = prompt.strip()
+
+        # ==========================================================
+        # 🔥 FIX 2: BLOCK FRONTEND PROMPT FOR AUTO VIDEO
+        # ==========================================================
+        if request.data.get("source_type") == "auto_video":
+            final_input_data.pop("prompt", None)
+
+        # ==========================================================
+        # PROMPT INJECTION (TEMPLATE)
+        # ==========================================================
         if template and template.prompt_template:
             try:
                 final_prompt = template.prompt_template.format(**input_data)
@@ -285,9 +261,7 @@ def create_generation(request):
 
                 request_payload=payload,
 
-                input_summary=(
-                    template.name if template else feature.name
-                )
+                input_summary=(template.name if template else feature.name)
             )
 
             model.track_usage()
@@ -308,11 +282,9 @@ def create_generation(request):
         import traceback
         traceback.print_exc()
 
-        return Response(
-            {"error": str(e)},
-            status=500
-        )
-
+        return Response({"error": str(e)}, status=500)
+    
+    
 # ==========================================================
 # GET GENERATION STATUS
 # ==========================================================
