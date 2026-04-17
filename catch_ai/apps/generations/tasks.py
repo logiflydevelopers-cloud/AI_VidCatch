@@ -135,8 +135,8 @@ def run_generation(self, generation_id, payload):
                 raise Exception("Auto video config not found")
 
             image = (
-                generation.input_payload.get("image")
-                or generation.input_payload.get("image_url")
+                generation.input_data.get("image")
+                or generation.input_data.get("image_url")
             )
 
             if not image:
