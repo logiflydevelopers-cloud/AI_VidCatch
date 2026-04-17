@@ -96,13 +96,13 @@ def run_generation(self, generation_id, payload):
         if not generation.is_credits_deducted:
 
             if generation.source_type == "auto_video":
-                transaction_type = "Auto Video"
+                transaction_type = "Generation (Auto Video)"
 
             elif generation.template:
-                transaction_type = "Template"
+                transaction_type = "Generation (Template)"
 
             elif generation.feature:
-                transaction_type = "Feature"
+                transaction_type = "Generation (Feature)"
 
             else:
                 transaction_type = "Generation"
