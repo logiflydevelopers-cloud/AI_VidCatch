@@ -109,6 +109,8 @@ class Generation(models.Model):
 
     model_provider = models.CharField(max_length=50, null=True, blank=True)
 
+    used_prompt = models.TextField(null=True, blank=True)
+
     # ============================
     # PAYLOAD TRACKING
     # ============================

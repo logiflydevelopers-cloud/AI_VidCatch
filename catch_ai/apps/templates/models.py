@@ -195,7 +195,10 @@ class GenerationConfig(models.Model):
         blank=True
     )
 
-    prompt_template = models.TextField()
+    prompt_templates = models.JSONField(
+        default=list,
+        help_text="List of prompts. System will randomly pick one."
+    )
 
     default_settings = models.JSONField(blank=True, null=True)
 
@@ -209,6 +212,13 @@ class GenerationConfig(models.Model):
     is_active = models.BooleanField(default=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def clean(self):
+        if self.model:
+            if self.model.feature_type != self.feature_type:
+                raise ValidationError(
+                    "Model feature_type must match config feature_type"
+                )
 
     def save(self, *args, **kwargs):
         if not self.id:

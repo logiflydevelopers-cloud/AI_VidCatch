@@ -14,9 +14,30 @@ from apps.services.firebase_storage import upload_generated_file
 from apps.credits.services import deduct_credits, add_credits
 from celery.exceptions import MaxRetriesExceededError
 from apps.templates.models import GenerationConfig
+import random
 
 FASTAPI_GENERATE_URL = settings.FASTAPI_GENERATE_URL
 logger = logging.getLogger(__name__)
+
+def get_random_prompt(config, last_prompt=None):
+    prompts = config.prompt_templates or []
+
+    # No prompts
+    if not prompts:
+        return ""
+
+    # Only one prompt
+    if len(prompts) == 1:
+        return prompts[0]
+
+    # Remove last used prompt
+    filtered = [p for p in prompts if p != last_prompt]
+
+    # Fallback if all same
+    if not filtered:
+        filtered = prompts
+
+    return random.choice(filtered)
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=10)
@@ -40,10 +61,25 @@ def run_generation(self, generation_id, payload):
         # ============================
         # COST CALCULATION
         # ============================
-        if generation.feature:
-            cost = generation.credit_used
+        config = None
+
+        if generation.source_type == "auto_video":
+            config = GenerationConfig.objects.filter(
+                config_type="auto_video",
+                is_active=True
+            ).first()
+
+            if not config:
+                raise Exception("Auto video config not found")
+
+            cost = config.credit_cost
+
         elif generation.template:
             cost = generation.template.credit_cost
+
+        elif generation.feature:
+            cost = generation.credit_used 
+
         else:
             cost = 1
 
@@ -61,10 +97,23 @@ def run_generation(self, generation_id, payload):
         # CREDIT DEDUCTION
         # ============================
         if not generation.is_credits_deducted:
+
+            if generation.source_type == "auto_video":
+                transaction_type = "Auto Video"
+
+            elif generation.template:
+                transaction_type = "Template"
+
+            elif generation.feature:
+                transaction_type = "Feature"
+
+            else:
+                transaction_type = "Generation"
+
             deduct_credits(
                 user=generation.user,
                 amount=cost,
-                transaction_type=f"Generation ({'template' if generation.template else 'feature'})",  # ✅ FIX
+                transaction_type=transaction_type,
                 template=generation.template,
                 feature=generation.feature
             )
@@ -93,7 +142,8 @@ def run_generation(self, generation_id, payload):
             if not image:
                 raise Exception("Image is required for auto video")
 
-            settings_data = config.default_settings
+            # SETTINGS
+            settings_data = config.default_settings or {}
 
             if isinstance(settings_data, str):
                 settings_data = json.loads(settings_data)
@@ -101,12 +151,23 @@ def run_generation(self, generation_id, payload):
             if not isinstance(settings_data, dict):
                 raise Exception("Invalid settings in DB")
 
+            # LAST PROMPT
+            last_generation = Generation.objects.filter(
+                user=generation.user,
+                source_type="auto_video"
+            ).exclude(id=generation.id).order_by("-created_at").first()
+
+            last_prompt = last_generation.used_prompt if last_generation else None
+
+            # RANDOM PROMPT
+            prompt = get_random_prompt(config, last_prompt)
+
             payload = {
                 "feature": config.feature_type,
-                "model": config.model.code,
+                "model": config.model.model_name,
                 "inputs": {
-                    "image_urls": [image], 
-                    "prompt": config.prompt_template
+                    "image_urls": [image],
+                    "prompt": prompt
                 },
                 "settings": settings_data
             }

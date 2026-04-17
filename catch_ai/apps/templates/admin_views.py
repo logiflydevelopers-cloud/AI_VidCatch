@@ -4,8 +4,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 
-from .models import Template, AIModel
-from .serializers import AdminTemplateSerializer, AIModelSerializer
+from .models import Template, AIModel, GenerationConfig
+from .serializers import AdminTemplateSerializer, AIModelSerializer, AdminGenerationConfigSerializer
 from .permissions import IsAdmin
 from django.db import transaction
 import json
@@ -308,3 +308,164 @@ def get_templates(request):
         return Response({
             "error": str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+
+@csrf_exempt
+@api_view(["GET", "POST", "PUT", "PATCH", "DELETE"])
+@permission_classes([IsAdmin])
+def auto_video_config(request, config_id=None):
+
+    try:
+
+        # ================================
+        # CREATE (POST)
+        # ================================
+        if request.method == "POST":
+
+            data = request.data.copy()
+
+            # MODEL NAME → ID
+            model_input = data.get("model")
+
+            if model_input:
+                model_obj = AIModel.objects.filter(
+                    Q(model_name=model_input) | Q(name=model_input),
+                    is_active=True
+                ).first()
+
+                if not model_obj:
+                    return Response({
+                        "error": f"Invalid model: {model_input}"
+                    }, status=400)
+
+                data["model"] = model_obj.id
+
+            # JSON PARSE
+            if isinstance(data.get("default_settings"), str):
+                data["default_settings"] = json.loads(data["default_settings"])
+
+            serializer = AdminGenerationConfigSerializer(data=data)
+
+            if serializer.is_valid():
+                config = serializer.save()
+
+                return Response({
+                    "message": "Created successfully",
+                    "data": serializer.data
+                }, status=201)
+
+            return Response(serializer.errors, status=400)
+
+        # ================================
+        # GET (LIST / SINGLE)
+        # ================================
+        if request.method == "GET":
+
+            # SINGLE
+            if config_id:
+                config = get_object_or_404(GenerationConfig, id=config_id)
+
+                return Response(
+                    AdminGenerationConfigSerializer(config).data
+                )
+
+            # LIST
+            queryset = GenerationConfig.objects.all().order_by("-created_at")
+
+            # FILTERS
+            feature_type = request.GET.get("feature_type")
+            config_type = request.GET.get("config_type")
+            is_active = request.GET.get("is_active")
+
+            if feature_type:
+                queryset = queryset.filter(feature_type=feature_type)
+
+            if config_type:
+                queryset = queryset.filter(config_type=config_type)
+
+            if is_active is not None:
+                queryset = queryset.filter(is_active=is_active.lower() == "true")
+
+            queryset = queryset.select_related("model")
+
+            paginator = TemplatePagination()
+            paginated_qs = paginator.paginate_queryset(queryset, request)
+
+            serializer = AdminGenerationConfigSerializer(paginated_qs, many=True)
+
+            return paginator.get_paginated_response({
+                "count": queryset.count(),
+                "results": serializer.data
+            })
+
+        # ================================
+        # UPDATE (PUT / PATCH)
+        # ================================
+        if request.method in ["PUT", "PATCH"]:
+
+            if not config_id:
+                return Response({
+                    "error": "config_id is required"
+                }, status=400)
+
+            config = get_object_or_404(GenerationConfig, id=config_id)
+
+            data = request.data.copy()
+
+            # MODEL NAME → ID
+            model_input = data.get("model")
+
+            if model_input:
+                model_obj = AIModel.objects.filter(
+                    Q(model_name=model_input) | Q(name=model_input),
+                    is_active=True
+                ).first()
+
+                if not model_obj:
+                    return Response({
+                        "error": f"Invalid model: {model_input}"
+                    }, status=400)
+
+                data["model"] = model_obj.id
+
+            # JSON PARSE
+            if isinstance(data.get("default_settings"), str):
+                data["default_settings"] = json.loads(data["default_settings"])
+
+            serializer = AdminGenerationConfigSerializer(
+                config,
+                data=data,
+                partial=True
+            )
+
+            if serializer.is_valid():
+                serializer.save()
+
+                return Response({
+                    "message": "Updated successfully",
+                    "data": serializer.data
+                })
+
+            return Response(serializer.errors, status=400)
+
+        # ================================
+        # DELETE
+        # ================================
+        if request.method == "DELETE":
+
+            if not config_id:
+                return Response({
+                    "error": "config_id is required"
+                }, status=400)
+
+            config = get_object_or_404(GenerationConfig, id=config_id)
+            config.delete()
+
+            return Response({
+                "message": "Deleted successfully"
+            }, status=204)
+
+    except Exception as e:
+        return Response({
+            "error": str(e)
+        }, status=500)

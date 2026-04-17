@@ -5,7 +5,8 @@ from .admin_views import (
     delete_template,
     get_ai_models,
     update_ai_model,
-    get_templates
+    get_templates,
+    auto_video_config
 )
 
 from apps.features.admin_views import (
@@ -38,6 +39,8 @@ urlpatterns = [
     path("templates/list/", get_templates),
     path("templates/<str:template_id>/", update_template),
     path("templates/<str:template_id>/delete/", delete_template),
+    path("auto-video-config/", auto_video_config),  
+    path("auto-video-config/<str:config_id>/", auto_video_config),
 
     # ==========================
     # AI MODELS
@@ -60,7 +63,7 @@ urlpatterns = [
     # ==========================
     # USERS
     # ==========================
-    path("users/<str:user_id>/", admin_user_detail),       # GET + PATCH + POST
+    path("users/<str:user_id>/", admin_user_detail),      
     path("users/<str:user_id>/delete/", delete_user),
 
     # ==========================
