@@ -19,6 +19,8 @@ def get_active_notifications(request):
 
     notifications = Notification.objects.filter(
         is_active=True
+    ).exclude(
+        display_type="notification"   
     ).filter(
         Q(start_time__lte=now) | Q(start_time__isnull=True),
         Q(end_time__gte=now) | Q(end_time__isnull=True),

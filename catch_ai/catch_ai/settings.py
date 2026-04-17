@@ -55,9 +55,13 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 CELERY_BEAT_SCHEDULE = {
     "process-notifications-every-minute": {
-        "task": "apps.templates.tasks.process_notifications",
+        "task": "apps.generations.tasks.process_notifications",
         "schedule": 60.0,  # every 60 seconds
     },
+    "delete-generations": {
+        "task": "apps.generations.tasks.delete_old_generations",
+        "schedule": crontab(hour="20"),  # every 24 hours
+    }
 }
 
 # Application definition

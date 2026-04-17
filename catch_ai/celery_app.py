@@ -16,7 +16,10 @@ app.config_from_object("django.conf:settings", namespace="CELERY")
 
 
 # Auto discover tasks in all installed apps
-app.autodiscover_tasks()
+app.autodiscover_tasks([
+    "apps.notifications",
+    "apps.templates",
+])
 
 
 @app.task(bind=True)
