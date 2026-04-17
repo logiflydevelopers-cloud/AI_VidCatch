@@ -14,6 +14,7 @@ from .tasks import run_generation
 from django.db.models import Q
 
 from .pagination import GenerationPagination   
+import random
 
 SPECIAL_FEATURES = ["text_to_video", "image_to_video", "colorize"]
 
@@ -75,7 +76,6 @@ def apply_default_settings(feature, mode, user_settings):
 # ==========================================================
 # MAIN API
 # ==========================================================
-import random  # 🔥 ADD THIS
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -284,7 +284,7 @@ def create_generation(request):
 
         return Response({"error": str(e)}, status=500)
     
-    
+
 # ==========================================================
 # GET GENERATION STATUS
 # ==========================================================
