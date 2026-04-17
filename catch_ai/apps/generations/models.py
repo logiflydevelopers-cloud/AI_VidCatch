@@ -162,10 +162,11 @@ class Generation(models.Model):
                     break
 
         # Auto source type
-        if self.template:
-            self.source_type = "template"
-        elif self.feature:
-            self.source_type = "feature"
+        if not self.source_type:
+            if self.template:
+                self.source_type = "template"
+            elif self.feature:
+                self.source_type = "feature"
 
         # Auto timestamps
         if self.status == "processing" and not self.started_at:
