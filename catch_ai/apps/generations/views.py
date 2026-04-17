@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from django.core.exceptions import ValidationError
 
-from apps.templates.models import Template, AIModel
+from apps.templates.models import Template, AIModel, GenerationConfig
 from apps.features.models import Features
 from .models import Generation
 from .serializers import GenerateSerializer, GenerationSerializer
@@ -93,6 +93,8 @@ def create_generation(request):
         user_settings = data.get("settings")
         quality = data.get("quality")
 
+        source_type = request.data.get("source_type")  # 🔥 NEW
+
         model = None
         feature_key = None
         credit_cost = 1
@@ -100,9 +102,34 @@ def create_generation(request):
         settings = {}
 
         # ==========================================================
-        # TEMPLATE FLOW
+        # 🔥 AUTO VIDEO FLOW (NEW)
         # ==========================================================
-        if template:
+        if source_type == "auto_video":
+
+            config = GenerationConfig.objects.filter(
+                config_type="auto_video",
+                is_active=True
+            ).first()
+
+            if not config:
+                return Response({"error": "Auto video config not found"}, status=400)
+
+            image = input_data.get("image_url") or input_data.get("image")
+
+            if not image:
+                return Response({"error": "Image is required"}, status=400)
+
+            model = config.model
+            feature_key = config.feature_type
+            credit_cost = config.credit_cost
+            model_provider = getattr(model, "provider", None)
+
+            settings = config.default_settings or {}
+
+        # ==========================================================
+        # TEMPLATE FLOW (UNCHANGED)
+        # ==========================================================
+        elif template:
 
             if not template.default_model:
                 return Response({"error": "No model configured for this template"}, status=400)
@@ -115,7 +142,7 @@ def create_generation(request):
             settings = template.default_settings 
 
         # ==========================================================
-        # FEATURE FLOW
+        # FEATURE FLOW (UNCHANGED)
         # ==========================================================
         elif feature:
 
@@ -191,11 +218,11 @@ def create_generation(request):
             return Response({"error": "Invalid request"}, status=400)
 
         # ==========================================================
-        # 🔥 FIX 1: CLEAN INPUT DATA
+        # INPUT CLEANING
         # ==========================================================
         final_input_data = input_data.copy()
 
-        # 🚨 CRITICAL: convert prompt list → string
+        # 🔥 Clean prompt ONLY if exists (not auto_video)
         if "prompt" in final_input_data:
             prompt = final_input_data["prompt"]
 
@@ -203,32 +230,26 @@ def create_generation(request):
                 prompt = random.choice(prompt)
 
             if not isinstance(prompt, str):
-                return Response(
-                    {"error": f"Invalid prompt type: {type(prompt)}"},
-                    status=400
-                )
+                return Response({"error": f"Invalid prompt type: {type(prompt)}"}, status=400)
 
             final_input_data["prompt"] = prompt.strip()
 
-        # ==========================================================
-        # 🔥 FIX 2: BLOCK FRONTEND PROMPT FOR AUTO VIDEO
-        # ==========================================================
-        if request.data.get("source_type") == "auto_video":
+        # 🔥 REMOVE prompt for auto_video (task will handle)
+        if source_type == "auto_video":
             final_input_data.pop("prompt", None)
 
         # ==========================================================
-        # PROMPT INJECTION (TEMPLATE)
+        # TEMPLATE PROMPT
         # ==========================================================
         if template and template.prompt_template:
             try:
                 final_prompt = template.prompt_template.format(**input_data)
+                final_input_data["prompt"] = final_prompt
             except KeyError as e:
                 return Response(
                     {"error": f"Missing input for prompt variable: {str(e)}"},
                     status=400
                 )
-
-            final_input_data["prompt"] = final_prompt
 
         # ==========================================================
         # PAYLOAD
@@ -251,6 +272,7 @@ def create_generation(request):
                 user=request.user,
                 template=template,
                 feature=feature,
+                source_type=source_type,  # 🔥 IMPORTANT
                 input_data=final_input_data,
                 status="pending",
 
@@ -260,7 +282,6 @@ def create_generation(request):
                 credit_used=credit_cost,
 
                 request_payload=payload,
-
                 input_summary=(template.name if template else feature.name)
             )
 
@@ -274,14 +295,13 @@ def create_generation(request):
         return Response({
             "job_id": generation.job_id,
             "status": "queued",
-            "source": "template" if template else "feature",
+            "source": source_type if source_type else ("template" if template else "feature"),
             "name": template.name if template else feature.name
         })
 
     except Exception as e:
         import traceback
         traceback.print_exc()
-
         return Response({"error": str(e)}, status=500)
     
 
