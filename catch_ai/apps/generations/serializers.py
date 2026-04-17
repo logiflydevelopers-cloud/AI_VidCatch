@@ -125,18 +125,12 @@ class GenerateSerializer(serializers.Serializer):
 
             db_settings = config.default_settings or {}
 
-            allowed_settings = [
-                "duration",
-                "resolution",
-                "aspect_ratio",
-                "generate_audio"
-            ]
+            user_settings = settings or {}
 
-            filtered_settings = {
-                k: v for k, v in db_settings.items() if k in allowed_settings
-            }
+            # Merge (user overrides default)
+            merged_settings = {**db_settings, **user_settings}
 
-            data["settings"] = {**filtered_settings, **(settings or {})}
+            data["settings"] = merged_settings
 
             prompt = config.prompt_template
 

@@ -15,6 +15,7 @@ from apps.credits.services import deduct_credits, add_credits
 from celery.exceptions import MaxRetriesExceededError
 from apps.templates.models import GenerationConfig
 import random
+import re
 
 FASTAPI_GENERATE_URL = settings.FASTAPI_GENERATE_URL
 logger = logging.getLogger(__name__)
@@ -138,16 +139,27 @@ def run_generation(self, generation_id, payload):
             if not image:
                 raise Exception("Image is required for auto video")
 
-            # SETTINGS
-            settings_data = config.default_settings or {}
+            # ============================
+            # SETTINGS (SAFE + MERGE)
+            # ============================
+            default_settings = config.default_settings or {}
 
-            if isinstance(settings_data, str):
-                settings_data = json.loads(settings_data)
+            if isinstance(default_settings, str):
+                try:
+                    default_settings = json.loads(default_settings)
+                except Exception:
+                    default_settings = {}
 
-            if not isinstance(settings_data, dict):
-                raise Exception("Invalid settings in DB")
+            if not isinstance(default_settings, dict):
+                default_settings = {}
 
+            # Merge with incoming payload settings (if any)
+            incoming_settings = payload.get("settings") or {}
+            settings_data = {**default_settings, **incoming_settings}
+
+            # ============================
             # LAST PROMPT
+            # ============================
             last_generation = Generation.objects.filter(
                 user=generation.user,
                 source_type="auto_video"
@@ -155,33 +167,37 @@ def run_generation(self, generation_id, payload):
 
             last_prompt = last_generation.used_prompt if last_generation else None
 
+            # ============================
             # RANDOM PROMPT
+            # ============================
             prompt = get_random_prompt(config, last_prompt)
 
-            # 🔥 CRITICAL FIX (DO NOT SKIP)
-            # handle bad DB / nested / wrong formats
             if isinstance(prompt, list):
                 prompt = random.choice(prompt)
 
-            if not isinstance(prompt, str):
-                raise Exception(f"Invalid prompt type: {type(prompt)}")
+            if not isinstance(prompt, str) or not prompt.strip():
+                raise Exception("Invalid or empty prompt")
 
             prompt = prompt.strip()
+
+            # ✅ SAVE USED PROMPT (VERY IMPORTANT)
+            generation.used_prompt = prompt
+            generation.save(update_fields=["used_prompt"])
 
             # ============================
             # FINAL PAYLOAD
             # ============================
             payload = {
                 "feature": config.feature_type,
-                "model": config.model.model_name,
+                "model": config.model.model_name if config.model else generation.model_name,
                 "inputs": {
                     "image_urls": [image],
-                    "prompt": prompt   
+                    "prompt": prompt
                 },
                 "settings": settings_data
             }
 
-            logger.info(f"FINAL PAYLOAD TO FASTAPI: {json.dumps(payload, indent=2)}")
+            logger.info(f"[AUTO VIDEO] FINAL PAYLOAD: {json.dumps(payload, indent=2)}")
 
         # ============================
         # ✅ FIX: TEMPLATE BYPASS FEATURE VALIDATION
@@ -217,16 +233,12 @@ def run_generation(self, generation_id, payload):
 
             # 🔥 FIX: convert duration
             if "duration" in settings:
-                if settings["duration"] == "5_sec":
-                    settings["duration"] = 5
-                elif settings["duration"] == "10_sec":
-                    settings["duration"] = 10
-                elif settings["duration"] == "4_sec":
-                    settings["duration"] = 4
-                elif settings["duration"] == "6_sec":
-                    settings["duration"] = 6
-                elif settings["duration"] == "8_sec":
-                    settings["duration"] = 8
+                value = settings["duration"]
+
+                if isinstance(value, str):
+                    match = re.match(r"(\d+)_sec$", value)
+                    if match:
+                        settings["duration"] = int(match.group(1))
 
             payload["settings"] = settings
 
