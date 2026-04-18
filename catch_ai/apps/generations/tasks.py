@@ -16,7 +16,6 @@ from celery.exceptions import MaxRetriesExceededError
 from apps.templates.models import GenerationConfig
 import random
 import re
-from apps.notifications.models import Notification, NotificationTrigger
 
 FASTAPI_GENERATE_URL = settings.FASTAPI_GENERATE_URL
 logger = logging.getLogger(__name__)
@@ -369,42 +368,3 @@ def delete_old_generations():
 
     return f"Deleted {deleted_count} old generations"
 
-@shared_task
-def process_notifications():
-    now = timezone.now()
-
-    # =========================
-    # 1. GLOBAL NOTIFICATIONS
-    # =========================
-    notifications = Notification.objects.filter(is_active=True)
-
-    for notif in notifications:
-
-        if notif.schedule_type == "after_open":
-            continue
-
-        if notif.is_currently_active():
-
-            # prevent duplicate (same day)
-            if notif.last_sent_at and notif.last_sent_at.date() == now.date():
-                continue
-
-            # 👉 Replace this with Firebase later
-            print(f"Send to all users: {notif.title}")
-
-            notif.last_sent_at = now
-            notif.save()
-
-    # =========================
-    # 2. USER TRIGGERED
-    # =========================
-    triggers = NotificationTrigger.objects.filter(
-        trigger_time__lte=now,
-        is_sent=False
-    )
-
-    for t in triggers:
-        print(f"Send to user {t.user.id}: {t.notification.title}")
-
-        t.is_sent = True
-        t.save()

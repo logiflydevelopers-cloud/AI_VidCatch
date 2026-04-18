@@ -5,8 +5,7 @@ from . import views
 
 urlpatterns = [
     # User APIs
-    path("banner/", views.get_active_banner),
-    path("all/", views.get_active_notifications),
-    path("app_open/",views.app_open)
+    path("slider/", views.get_slider_notifications, name="slider-notifications"),
+    path("popup/", views.get_popup_notifications, name="popup-notifications")
 ]
 

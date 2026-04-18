@@ -1,5 +1,3 @@
-# notifications/views.py
-
 from django.utils import timezone
 from django.db.models import Q
 from rest_framework.decorators import api_view
@@ -7,20 +5,22 @@ from rest_framework.response import Response
 
 from .models import Notification
 from .serializers import NotificationSerializer
-from .services import handle_app_open
 
+
+# ==============================
+# SLIDER (CONTINUOUS DISPLAY)
+# ==============================
 @api_view(["GET"])
-def get_active_notifications(request):
+def get_slider_notifications(request):
     """
-    Get all active notifications (banner/push/in-app)
+    Get all slider notifications (continuous UI)
     """
 
     now = timezone.now()
 
     notifications = Notification.objects.filter(
-        is_active=True
-    ).exclude(
-        display_type="notification"   
+        is_active=True,
+        display_type="slider"
     ).filter(
         Q(start_time__lte=now) | Q(start_time__isnull=True),
         Q(end_time__gte=now) | Q(end_time__isnull=True),
@@ -29,43 +29,42 @@ def get_active_notifications(request):
     serializer = NotificationSerializer(notifications, many=True)
 
     return Response({
-        "count": len(serializer.data),
+        "count": notifications.count(),
         "notifications": serializer.data
     })
 
 
+# ==============================
+# POPUP (TRIGGER-BASED)
+# ==============================
 @api_view(["GET"])
-def get_active_banner(request):
+def get_popup_notifications(request):
     """
-    Get ONLY top priority banner (for top UI)
+    Get popup notifications (frontend will decide when to show)
     """
 
     now = timezone.now()
 
-    banner = Notification.objects.filter(
-        notification_type="banner",
-        is_active=True
+    notifications = Notification.objects.filter(
+        is_active=True,
+        display_type="notification"
     ).filter(
         Q(start_time__lte=now) | Q(start_time__isnull=True),
         Q(end_time__gte=now) | Q(end_time__isnull=True),
-    ).order_by("-priority", "-created_at").first()
+    )
 
-    if not banner:
-        return Response({"banner": None})
+    # OPTIONAL BUT IMPORTANT (prevent repeat spam)
+    if request.user.is_authenticated:
+        seen_ids = request.user.notificationseen_set.values_list(
+            "notification_id", flat=True
+        )
+        notifications = notifications.exclude(id__in=seen_ids)
 
-    serializer = NotificationSerializer(banner)
+    notifications = notifications.order_by("-priority", "-created_at")
+
+    serializer = NotificationSerializer(notifications, many=True)
 
     return Response({
-        "banner": serializer.data
+        "count": notifications.count(),
+        "notifications": serializer.data
     })
-
-@api_view(["POST"])
-def app_open(request):
-    """
-    Call this when app starts
-    """
-    user = request.user
-
-    handle_app_open(user)
-
-    return Response({"message": "App open tracked"})

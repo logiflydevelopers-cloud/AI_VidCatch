@@ -33,12 +33,12 @@ class Notification(models.Model):
         ("video", "Video"),
     ]
 
-    SCHEDULE_TYPE_CHOICES = [
+    TRIGGER_TYPE_CHOICES = [
         ("instant", "Instant"),
-        ("once", "One Time"),
-        ("daily", "Daily"),
-        ("weekly", "Weekly"),
-        ("after_open", "After App Open"),
+        ("delay", "Delay after open"),
+        ("after_actions", "After actions"),
+        ("first_video", "After first video"),
+        ("idle", "User idle"),
     ]
 
     # ========================
@@ -74,22 +74,20 @@ class Notification(models.Model):
     # ========================
     # SCHEDULING
     # ========================
-    schedule_type = models.CharField(
-        max_length=20,
-        choices=SCHEDULE_TYPE_CHOICES,
+    trigger_type = models.CharField(
+        max_length=50,
+        choices=TRIGGER_TYPE_CHOICES,
         default="instant"
     )
 
+    trigger_value = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Seconds / action count depending on trigger"
+    )
+
     start_time = models.DateTimeField(blank=True, null=True)
-    end_time = models.DateTimeField(blank=True, null=True)
-
-    day_of_week = models.IntegerField(blank=True, null=True)  # 0=Monday, 6=Sunday
-    time_of_day = models.TimeField(blank=True, null=True)
-
-    delay_min = models.IntegerField(blank=True, null=True)
-    delay_max = models.IntegerField(blank=True, null=True)
-
-    last_sent_at = models.DateTimeField(blank=True, null=True)
+    end_time = models.DateTimeField(blank=True, null=True)    
 
     # ========================
     # TARGETING
@@ -119,36 +117,21 @@ class Notification(models.Model):
         if not self.is_active:
             return False
 
-        # One-time
-        if self.schedule_type == "once":
-            if self.start_time and self.start_time > now:
-                return False
+        if self.start_time and now < self.start_time:
+            return False
 
-        # Daily
-        elif self.schedule_type == "daily":
-            if self.time_of_day:
-                return now.time() >= self.time_of_day
+        if self.end_time and now > self.end_time:
+            return False
 
-        # Weekly
-        elif self.schedule_type == "weekly":
-            if self.day_of_week is not None and self.time_of_day:
-                return (
-                    now.weekday() == self.day_of_week and
-                    now.time() >= self.time_of_day
-                )
-
+        return True
+                    
     def __str__(self):
         return self.title
     
-class NotificationTrigger(models.Model):
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.CASCADE
-    )
+
+class NotificationSeen(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     notification = models.ForeignKey(Notification, on_delete=models.CASCADE)
+    seen_at = models.DateTimeField(auto_now_add=True)
 
-    trigger_time = models.DateTimeField()
-    is_sent = models.BooleanField(default=False)
-
-    created_at = models.DateTimeField(auto_now_add=True)
 
