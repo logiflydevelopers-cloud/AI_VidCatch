@@ -28,6 +28,7 @@ class NotificationSerializer(serializers.ModelSerializer):
             "user_type",
 
             "created_at",
+            "is_active"
         ]
 
 
