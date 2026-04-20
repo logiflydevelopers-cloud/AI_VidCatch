@@ -2,7 +2,6 @@ import uuid
 from django.db import models
 from django.core.exceptions import ValidationError
 
-
 FEATURE_CHOICES = [
     ("text_to_video", "Text to Video"),
     ("image_to_video", "Image to Video"),

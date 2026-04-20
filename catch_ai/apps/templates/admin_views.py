@@ -410,7 +410,7 @@ def auto_video_config(request, config_id=None):
 
             config = get_object_or_404(GenerationConfig, id=config_id)
 
-            data = request.data.copy()
+            data = request.data
 
             # MODEL NAME → ID
             model_input = data.get("model")

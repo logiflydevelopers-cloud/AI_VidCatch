@@ -180,7 +180,6 @@ def run_generation(self, generation_id, payload):
 
             prompt = prompt.strip()
 
-            # ✅ SAVE USED PROMPT (VERY IMPORTANT)
             generation.used_prompt = prompt
             generation.save(update_fields=["used_prompt"])
 
@@ -200,7 +199,7 @@ def run_generation(self, generation_id, payload):
             logger.info(f"[AUTO VIDEO] FINAL PAYLOAD: {json.dumps(payload, indent=2)}")
 
         # ============================
-        # ✅ FIX: TEMPLATE BYPASS FEATURE VALIDATION
+        # TEMPLATE BYPASS FEATURE VALIDATION
         # ============================
         if generation.template:
             # Remove feature so FastAPI does NOT validate mapping
@@ -231,7 +230,6 @@ def run_generation(self, generation_id, payload):
         if payload.get("settings"):
             settings = payload["settings"]
 
-            # 🔥 FIX: convert duration
             if "duration" in settings:
                 value = settings["duration"]
 

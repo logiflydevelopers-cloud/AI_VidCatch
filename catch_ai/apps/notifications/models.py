@@ -6,9 +6,7 @@ from django.utils import timezone
 from django.contrib.auth import get_user_model
 from django.conf import settings
 
-
 User = get_user_model()
-
 
 class Notification(models.Model):
 
@@ -128,7 +126,6 @@ class Notification(models.Model):
     def __str__(self):
         return self.title
     
-
 class NotificationSeen(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     notification = models.ForeignKey(Notification, on_delete=models.CASCADE)

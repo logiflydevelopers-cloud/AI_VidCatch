@@ -2,6 +2,7 @@ import uuid
 import mimetypes
 import requests
 from .firebase import bucket
+import mimetypes
 
 
 # ==========================================================
@@ -60,21 +61,30 @@ def upload_banner_media(file):
     Upload banner image/video to Firebase (banners folder)
     """
 
+    # Ensure file pointer reset
+    file.seek(0)
+
     content_type = getattr(file, "content_type", None)
 
     if not content_type:
         content_type, _ = mimetypes.guess_type(file.name)
 
-    if content_type in ALLOWED_IMAGE_TYPES:
+    # Validate type
+    if content_type and content_type.startswith("image/"):
         media_type = "image"
 
-    elif content_type in ALLOWED_VIDEO_TYPES:
+    elif content_type and content_type.startswith("video/"):
         media_type = "video"
 
     else:
         raise Exception("Invalid file type. Only images/videos allowed.")
 
-    url, _ = upload_file(file, "banners")
+    # Validate size (10MB)
+    if file.size > 10 * 1024 * 1024:
+        raise Exception("File too large (max 10MB)")
+
+    # Upload to Firebase
+    url, file_path = upload_file(file, "banners")
 
     return url, media_type
 

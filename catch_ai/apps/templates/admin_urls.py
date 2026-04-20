@@ -37,9 +37,9 @@ urlpatterns = [
     # ==========================
     path("templates/", create_template),
     path("templates/list/", get_templates),
+    path("auto-video-config/", auto_video_config),
     path("templates/<str:template_id>/", update_template),
-    path("templates/<str:template_id>/delete/", delete_template),
-    path("auto-video-config/", auto_video_config),  
+    path("templates/<str:template_id>/delete/", delete_template),  
     path("auto-video-config/<str:config_id>/", auto_video_config),
 
     # ==========================

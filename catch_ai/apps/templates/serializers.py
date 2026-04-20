@@ -154,7 +154,7 @@ class AdminGenerationConfigSerializer(serializers.ModelSerializer):
     # =========================
     # NEW: MULTIPLE PROMPTS
     # =========================
-    prompt_templates = serializers.ListField(
+    prompt_template = serializers.ListField(
         child=serializers.CharField(),
         required=False
     )
@@ -179,20 +179,20 @@ class AdminGenerationConfigSerializer(serializers.ModelSerializer):
                 })
 
         # 🔥 PROMPT VALIDATION
-        prompts = data.get("prompt_templates")
+        prompts = data.get("prompt_template")
 
         # On CREATE → must have prompts
         if self.instance is None:
             if not prompts or len(prompts) == 0:
                 raise serializers.ValidationError({
-                    "prompt_templates": "At least one prompt is required"
+                    "prompt_template": "At least one prompt is required"
                 })
 
         # On UPDATE → if provided, validate
         if prompts is not None:
             if not isinstance(prompts, list) or len(prompts) == 0:
                 raise serializers.ValidationError({
-                    "prompt_templates": "Must be a non-empty list"
+                    "prompt_template": "Must be a non-empty list"
                 })
 
             # remove empty strings
@@ -200,10 +200,10 @@ class AdminGenerationConfigSerializer(serializers.ModelSerializer):
 
             if not cleaned:
                 raise serializers.ValidationError({
-                    "prompt_templates": "Prompts cannot be empty"
+                    "prompt_template": "Prompts cannot be empty"
                 })
 
-            data["prompt_templates"] = cleaned
+            data["prompt_template"] = cleaned
 
         return data
 

@@ -27,7 +27,7 @@ def notifications(request):
         serializer = NotificationSerializer(notifications, many=True)
 
         return Response({
-            "count": len(serializer.data),
+            "count": notifications.count(),
             "notifications": serializer.data
         })
 
@@ -58,77 +58,60 @@ def notifications(request):
         # DEFAULT VALUES
         # ==========================
         data["display_type"] = data.get("display_type", "notification")
-        data["notification_type"] = data.get("notification_type", "banner")
+        data["notification_type"] = "banner"
         data["message"] = data.get("message", "")
-        data["schedule_type"] = data.get("schedule_type", "instant")
         data["is_active"] = data.get("is_active", True)
+        data["trigger_type"] = data.get("trigger_type", "instant")
 
         # ==========================
-        # BASIC VALIDATION
+        # DISPLAY VALIDATION
         # ==========================
-        if data["display_type"] not in ["notification", "slider", "both"]:
-            return Response({"error": "Invalid display_type"}, status=400)
-
-        schedule_type = data.get("schedule_type")
+        if data["display_type"] not in ["notification", "slider"]:
+            return Response(
+                {"error": "display_type must be 'notification' or 'slider'"},
+                status=400
+            )
 
         # ==========================
-        # SCHEDULING VALIDATION
+        # TRIGGER VALIDATION
         # ==========================
+        trigger_type = data.get("trigger_type")
+        trigger_value = data.get("trigger_value")
 
-        # ONE TIME
-        if schedule_type == "once":
-            if not data.get("start_time"):
+        if trigger_type in ["after_actions", "delay", "idle"]:
+            if trigger_value is None:
                 return Response(
-                    {"error": "start_time required for one-time notification"},
-                    status=400
-                )
-
-        # DAILY
-        if schedule_type == "daily":
-            if not data.get("time_of_day"):
-                return Response(
-                    {"error": "time_of_day required for daily notification"},
-                    status=400
-                )
-            data["start_time"] = None  # avoid confusion
-
-        # WEEKLY
-        if schedule_type == "weekly":
-            if data.get("day_of_week") is None or not data.get("time_of_day"):
-                return Response(
-                    {"error": "day_of_week and time_of_day required for weekly"},
-                    status=400
-                )
-            data["start_time"] = None
-
-        # AFTER APP OPEN
-        if schedule_type == "after_open":
-            delay_min = data.get("delay_min")
-            delay_max = data.get("delay_max")
-
-            if delay_min is None or delay_max is None:
-                return Response(
-                    {"error": "delay_min and delay_max required for after_open"},
+                    {"error": f"trigger_value required for {trigger_type}"},
                     status=400
                 )
 
             try:
-                delay_min = int(delay_min)
-                delay_max = int(delay_max)
+                data["trigger_value"] = int(trigger_value)
             except ValueError:
                 return Response(
-                    {"error": "delay_min and delay_max must be integers"},
+                    {"error": "trigger_value must be an integer"},
                     status=400
                 )
 
-            if delay_min > delay_max:
+        # ==========================
+        # SLIDER RULE (NO TRIGGERS)
+        # ==========================
+        if data["display_type"] == "slider":
+            data["trigger_type"] = "instant"
+            data["trigger_value"] = None
+
+        # ==========================
+        # TIME VALIDATION
+        # ==========================
+        start_time = data.get("start_time")
+        end_time = data.get("end_time")
+
+        if start_time and end_time:
+            if start_time > end_time:
                 return Response(
-                    {"error": "delay_min cannot be greater than delay_max"},
+                    {"error": "start_time cannot be after end_time"},
                     status=400
                 )
-
-            data["start_time"] = None
-            data["end_time"] = None
 
         # ==========================
         # SERIALIZE & SAVE
@@ -183,72 +166,56 @@ def notification_detail(request, notif_id):
                 return Response({"error": str(e)}, status=400)
 
         # ==========================
-        # GET FINAL SCHEDULE TYPE
+        # DISPLAY VALIDATION
         # ==========================
-        schedule_type = data.get("schedule_type", notification.schedule_type)
+        display_type = data.get("display_type", notification.display_type)
+
+        if display_type not in ["notification", "slider"]:
+            return Response(
+                {"error": "display_type must be 'notification' or 'slider'"},
+                status=400
+            )
 
         # ==========================
-        # SCHEDULING VALIDATION
+        # TRIGGER VALIDATION
         # ==========================
+        trigger_type = data.get("trigger_type", notification.trigger_type)
+        trigger_value = data.get("trigger_value", notification.trigger_value)
 
-        # ONE TIME
-        if schedule_type == "once":
-            if not data.get("start_time") and not notification.start_time:
+        if trigger_type in ["after_actions", "delay", "idle"]:
+            if trigger_value is None:
                 return Response(
-                    {"error": "start_time required for one-time notification"},
-                    status=400
-                )
-
-        # DAILY
-        if schedule_type == "daily":
-            if not data.get("time_of_day") and not notification.time_of_day:
-                return Response(
-                    {"error": "time_of_day required for daily notification"},
-                    status=400
-                )
-            data["start_time"] = None
-
-        # WEEKLY
-        if schedule_type == "weekly":
-            if (
-                data.get("day_of_week") is None and notification.day_of_week is None
-            ) or (
-                not data.get("time_of_day") and not notification.time_of_day
-            ):
-                return Response(
-                    {"error": "day_of_week and time_of_day required for weekly"},
-                    status=400
-                )
-            data["start_time"] = None
-
-        # AFTER APP OPEN
-        if schedule_type == "after_open":
-            delay_min = data.get("delay_min", notification.delay_min)
-            delay_max = data.get("delay_max", notification.delay_max)
-
-            if delay_min is None or delay_max is None:
-                return Response(
-                    {"error": "delay_min and delay_max required"},
+                    {"error": f"trigger_value required for {trigger_type}"},
                     status=400
                 )
 
             try:
-                delay_min = int(delay_min)
-                delay_max = int(delay_max)
+                data["trigger_value"] = int(trigger_value)
             except ValueError:
                 return Response(
-                    {"error": "delay_min and delay_max must be integers"},
+                    {"error": "trigger_value must be an integer"},
                     status=400
                 )
 
-            if delay_min > delay_max:
+        # ==========================
+        # SLIDER RULE (NO TRIGGERS)
+        # ==========================
+        if display_type == "slider":
+            data["trigger_type"] = "instant"
+            data["trigger_value"] = None
+
+        # ==========================
+        # TIME VALIDATION
+        # ==========================
+        start_time = data.get("start_time", notification.start_time)
+        end_time = data.get("end_time", notification.end_time)
+
+        if start_time and end_time:
+            if start_time > end_time:
                 return Response(
-                    {"error": "delay_min cannot be greater than delay_max"},
+                    {"error": "start_time cannot be after end_time"},
                     status=400
                 )
-
-            data["start_time"] = None
-            data["end_time"] = None
 
         # ==========================
         # SERIALIZER UPDATE
@@ -261,11 +228,6 @@ def notification_detail(request, notif_id):
 
         if serializer.is_valid():
             instance = serializer.save()
-
-            # 🔥 IMPORTANT: reset last_sent_at if scheduling changed
-            if "schedule_type" in data or "time_of_day" in data or "day_of_week" in data:
-                instance.last_sent_at = None
-                instance.save(update_fields=["last_sent_at"])
 
             return Response({
                 "message": "Notification updated successfully",
