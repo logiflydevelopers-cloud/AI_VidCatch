@@ -96,7 +96,7 @@ def create_generation(request):
         user_settings = data.get("settings")
         quality = data.get("quality")
 
-        source_type = request.data.get("source_type")  # 🔥 NEW
+        source_type = request.data.get("source_type") 
 
         model = None
         feature_key = None
@@ -105,7 +105,7 @@ def create_generation(request):
         settings = {}
 
         # ==========================================================
-        # 🔥 AUTO VIDEO FLOW (NEW)
+        # AUTO VIDEO FLOW
         # ==========================================================
         if source_type == "auto_video":
 
@@ -225,7 +225,6 @@ def create_generation(request):
         # ==========================================================
         final_input_data = input_data.copy()
 
-        # 🔥 Clean prompt ONLY if exists (not auto_video)
         if "prompt" in final_input_data:
             prompt = final_input_data["prompt"]
 
@@ -237,7 +236,6 @@ def create_generation(request):
 
             final_input_data["prompt"] = prompt.strip()
 
-        # 🔥 REMOVE prompt for auto_video (task will handle)
         if source_type == "auto_video":
             final_input_data.pop("prompt", None)
 
@@ -337,7 +335,7 @@ def list_generations(request):
         Generation.objects
         .filter(
             user=request.user,
-            created_at__gte=now() - timedelta(days=7)  # ✅ ADD THIS LINE
+            created_at__gte=now() - timedelta(days=7)
         )
         .select_related("template", "feature")
         .order_by("-created_at")
