@@ -178,8 +178,8 @@ def get_dashboard_data():
     # CREDITS + EARNINGS (AGGREGATED)
     # ==========================================================
     credit_stats = CreditTransaction.objects.aggregate(
-        issued=Sum("amount", filter=Q(transaction_type="credit")),
-        used=Sum("amount", filter=Q(transaction_type="debit"))
+        issued=Sum("amount", filter=Q(transaction_action="add")),
+        used=Sum("amount", filter=Q(transaction_action="deduct"))
     )
 
     total_credits_issued = credit_stats["issued"] or 0
