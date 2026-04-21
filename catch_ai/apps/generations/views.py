@@ -15,6 +15,9 @@ from django.db.models import Q
 
 from .pagination import GenerationPagination   
 import random
+from django.utils.timezone import now
+from datetime import timedelta
+
 
 SPECIAL_FEATURES = ["text_to_video", "image_to_video", "colorize"]
 
@@ -332,7 +335,10 @@ def list_generations(request):
 
     queryset = (
         Generation.objects
-        .filter(user=request.user)
+        .filter(
+            user=request.user,
+            created_at__gte=now() - timedelta(days=7)  # ✅ ADD THIS LINE
+        )
         .select_related("template", "feature")
         .order_by("-created_at")
     )
