@@ -5,6 +5,8 @@ from apps.generations.models import Generation
 from apps.templates.models import AIModel
 from apps.credits.models import UserCredits, CreditTransaction
 from apps.payments.models import Payment
+from django.utils.timezone import now
+from datetime import timedelta
 
 
 from django.db.models import Count, Sum, Q
@@ -117,6 +119,17 @@ def get_dashboard_data():
     credits_list = []
 
     for c in credits_qs:
+
+        # Default status
+        status = "success"
+
+        # If you have flags like this, use them
+        if hasattr(c, "is_refunded") and c.is_refunded:
+            status = "failed"
+
+        if hasattr(c, "is_credits_deducted") and not c.is_credits_deducted:
+            status = "failed"
+
         credits_list.append({
             "id": c.id,
             "user_id": c.user.id,
@@ -126,6 +139,8 @@ def get_dashboard_data():
             "action": c.transaction_action,
             "amount": c.amount,
             "type": c.transaction_type,
+
+            "status": status,
 
             "feature_id": c.feature_id,
             "feature_name": c.feature.name if c.feature else None,
@@ -190,15 +205,29 @@ def get_dashboard_data():
     ).aggregate(total=Sum("amount"))["total"] or 0
 
     # ==========================================================
-    # AI USAGE (SINGLE QUERY)
+    # AI USAGE (DAILY / WEEKLY / MONTHLY)
     # ==========================================================
-    ai_stats = Generation.objects.aggregate(
-        templates=Count("id", filter=Q(template__isnull=False)),
-        features=Count("id", filter=Q(feature__isnull=False)),
-        auto_video=Count("id", filter=Q(source_type="auto_video"))
-    )
 
-    ai_usage = ai_stats
+    def get_ai_usage(qs):
+        return qs.aggregate(
+            templates=Count("id", filter=Q(template__isnull=False)),
+            features=Count("id", filter=Q(feature__isnull=False)),
+            auto_video=Count("id", filter=Q(source_type="auto_video"))
+        )
+
+    current_time = now()
+
+    ai_usage = {
+        "daily": get_ai_usage(
+            Generation.objects.filter(created_at__gte=current_time - timedelta(days=1))
+        ),
+        "weekly": get_ai_usage(
+            Generation.objects.filter(created_at__gte=current_time - timedelta(days=7))
+        ),
+        "monthly": get_ai_usage(
+            Generation.objects.filter(created_at__gte=current_time - timedelta(days=30))
+        )
+    }
 
     # ==========================================================
     # ALERTS (PERCENTAGE FIXED)
